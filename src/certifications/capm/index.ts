@@ -3,7 +3,13 @@ import type { CertificationPack } from '../../core/types';
 // Contenido original de DEMOSTRACIÓN. Pendiente de revisión editorial antes de
 // utilizarlo como banco de preparación para la certificación CAPM.
 export const capm: CertificationPack = {
-  id: 'capm', title: 'CAPM', subtitle: 'Certified Associate in Project Management',
+  id: 'capm',
+  shortTitle: 'CAPM',
+  title: 'CAPM',
+  subtitle: 'Certified Associate in Project Management',
+  description: 'Fundamentos, enfoques predictivos, ágiles y análisis de negocio.',
+  accent: '#8b7cff',
+  accentSoft: '#40d9c4',
   questions: [
     { id: 'CAPM-DEMO-001', domain: 'Fundamentos', topic: 'Conceptos', difficulty: 'basico', prompt: '¿Qué caracteriza a un proyecto?', options: ['Es un esfuerzo temporal para crear un resultado único', 'Es una operación continua y repetitiva', 'No tiene objetivos definidos', 'Siempre dura menos de un año'], correct: 0, explanation: 'Un proyecto es un esfuerzo temporal orientado a producir un producto, servicio o resultado único.' },
     { id: 'CAPM-DEMO-002', domain: 'Fundamentos', topic: 'Roles', difficulty: 'basico', prompt: '¿Cuál es una responsabilidad habitual del patrocinador del proyecto?', options: ['Escribir cada actividad del cronograma', 'Proporcionar apoyo y facilitar recursos a nivel ejecutivo', 'Realizar todas las pruebas técnicas', 'Sustituir a todos los interesados'], correct: 1, explanation: 'El patrocinador apoya el proyecto a nivel ejecutivo y facilita su alineación y recursos.' },

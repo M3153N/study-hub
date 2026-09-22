@@ -1,18 +1,19 @@
 # Study Hub
 
-Plataforma de estudio web, responsive y reutilizable para certificaciones. CAPM es el primer paquete de contenido. Este repositorio contiene un **MVP técnico** con **18 preguntas de demostración no validadas como simulacro oficial**. No está afiliado a PMI.
+Plataforma de estudio web, responsive y reutilizable para certificaciones. Incluye paquetes demostrativos para **CAPM**, **ISO 27001 Lead Implementer** e **ITIL 4 Foundation**. El contenido no representa bancos oficiales ni reemplaza materiales acreditados.
 
 ## Funcionalidades de esta versión
 
-- Tema oscuro con interfaz mobile-first.
-- Modo aleatorio con filtros por dificultad y dominio.
-- Recorridos lineales independientes (básico, intermedio y avanzado), reanudables y reiniciables.
-- Respuestas explicadas y resumen de cada sesión.
-- Progreso guardado en `localStorage` de este navegador (sin sincronización ni cuenta).
-- Glosario inicial y panel básico de estadísticas.
-- Estructura `src/certifications/<id>` para incorporar ISO 27001 u otros paquetes después.
+- Tema oscuro mobile-first, navegación inferior y acentos por certificación.
+- Selector de cursos alimentado por un registro modular.
+- Sesiones aleatorias o lineales configurables de 5, 10, 20 o todas las preguntas disponibles.
+- Sesiones reanudables con posición y respuestas guardadas.
+- Recorridos lineales independientes por nivel y por certificación.
+- Respuestas explicadas, glosarios y dashboards con estadísticas por curso.
+- Progreso guardado en `localStorage`, aislado por certificación y con migración del historial CAPM v1.
+- Estructura `src/certifications/<id>` para incorporar nuevos paquetes sin modificar el motor de preguntas.
 
-**Todavía no incluye:** simulacro CAPM completo, preguntas validadas, repetición espaciada, sincronización entre dispositivos ni material extenso.
+**Todavía no incluye:** simulacros oficiales completos, preguntas validadas, repetición espaciada, sincronización entre dispositivos ni cuentas de usuario.
 
 ## Desarrollo local
 
@@ -35,4 +36,4 @@ Este proyecto usa `base: '/study-hub/'` en Vite y un workflow de GitHub Actions 
 
 ## Incorporar preguntas
 
-Agregá preguntas a `src/certifications/capm/index.ts` con un ID permanente, dominio, tema, dificultad, enunciado, cuatro opciones, índice de respuesta correcta (0–3) y explicación. Revisá editorialmente cada pregunta antes de utilizarla para preparar un examen. Los IDs no deben cambiar una vez publicados porque las estadísticas los utilizan para identificar errores.
+Creá un paquete en `src/certifications/<id>/index.ts` que implemente `CertificationPack` y registralo en `src/certifications/index.ts`. Cada pregunta requiere un ID permanente, dominio, tema, dificultad, enunciado, cuatro opciones, índice de respuesta correcta (0–3) y explicación. Los IDs no deben cambiar una vez publicados porque las sesiones y estadísticas los utilizan para identificar respuestas.
