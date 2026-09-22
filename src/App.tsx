@@ -7,6 +7,7 @@ import { levelNames, levels, shuffle, type Choice, type Difficulty, type QuizMod
 
 type View = 'home' | 'practice' | 'quiz' | 'library' | 'resource' | 'simulations' | 'progress' | 'settings';
 type SessionSize = 5 | 10 | 20 | 'all';
+type HomeCategory = 'training' | 'library' | 'tracking';
 interface Preferences { reducedMotion: boolean; largeText: boolean; }
 
 const courseKey = 'study-hub:selected-course:v1';
@@ -35,6 +36,8 @@ function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>('basico');
   const [sessionSize, setSessionSize] = useState<SessionSize>(5);
   const [preferences, setPreferences] = useState(initialPreferences);
+  const [homeCategory, setHomeCategory] = useState<HomeCategory>('training');
+  const [homePage, setHomePage] = useState(0);
   const course = getCertification(courseId);
   const { progress, setProgress, reset } = useCourseProgress(courseId);
   const session = progress.activeSession;
@@ -117,6 +120,19 @@ function App() {
     { title: 'Mi progreso', description: 'Precisión, recorridos y oportunidades de mejora.', icon: 'chart', action: () => navigate('progress') },
   ];
 
+  const categoryCards = studyCards.filter(card => {
+    if (homeCategory === 'training') return ['Práctica', 'Simulacros'].includes(card.title);
+    if (homeCategory === 'tracking') return card.title === 'Mi progreso';
+    return !['Práctica', 'Simulacros', 'Mi progreso'].includes(card.title);
+  });
+  const pageCount = Math.ceil(categoryCards.length / 2);
+  const visibleCards = categoryCards.slice(homePage * 2, homePage * 2 + 2);
+
+  function selectHomeCategory(category: HomeCategory) {
+    setHomeCategory(category);
+    setHomePage(0);
+  }
+
   const navSection = view === 'resource' ? 'library' : view === 'quiz' ? 'practice' : view;
 
   return <div className={`app-shell motif-${course.theme.motif} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.largeText ? 'large-text' : ''}`} style={style}>
@@ -127,14 +143,12 @@ function App() {
       <button className={`settings-button ${view === 'settings' ? 'active' : ''}`} onClick={() => navigate('settings')} aria-label="Abrir configuración"><Icon name="settings" size={21}/></button>
     </header>
 
-    <main>
-      {view === 'home' && <>
+    <main className="app-main">
+      {view === 'home' && <section className="home-view view-panel">
         <section className="study-hero"><div className="course-emblem"><Icon name={course.theme.icon} size={48}/><i/><i/></div><div><p className="eyebrow">Tu centro de estudio · recursos demostrativos</p><h1>{course.title}</h1><p className="subtitle">{course.subtitle}</p><p>{course.description}</p><div className="hero-actions">{session ? <button className="primary" onClick={() => navigate('quiz')}>Continuar sesión · {session.position + 1}/{session.questionIds.length}</button> : <button className="primary" onClick={() => navigate('practice')}>Empezar a practicar</button>}<button className="secondary" onClick={() => navigate('library')}>Explorar biblioteca</button></div></div><ProgressRing value={accuracy}/></section>
         <section className="quick-stats" aria-label={`Resumen de ${course.title}`}><article><span>Respondidas</span><strong>{progress.answered}</strong></article><article><span>Precisión</span><strong>{progress.answered ? `${accuracy}%` : '—'}</strong></article><article><span>Ruta actual</span><strong>{Math.max(...Object.values(progress.linear))}/{Math.max(...Object.values(counts), 0)}</strong></article></section>
-        <div className="section-heading"><div><p className="eyebrow">Todo en un lugar</p><h2>¿Qué querés estudiar hoy?</h2></div><span>{studyCards.length} herramientas</span></div>
-        <section className="study-grid">{studyCards.map(card => <button key={card.title} className="study-card" onClick={card.action}><span className="tool-icon"><Icon name={card.icon} size={25}/></span><span className="tool-copy"><strong>{card.title}</strong><small>{card.description}</small>{card.count && <em>{card.count}</em>}</span><Icon name="arrow" size={18}/></button>)}</section>
-        <p className="independence-note">Study Hub es una herramienta de estudio independiente. Los nombres de certificaciones pertenecen a sus respectivos titulares; no se utilizan logos oficiales ni se implica afiliación.</p>
-      </>}
+        <div className="home-tools"><div className="section-heading"><div><p className="eyebrow">Todo en un lugar</p><h2>¿Qué querés estudiar?</h2></div><span>{studyCards.length} herramientas</span></div><div className="category-tabs" role="tablist" aria-label="Categorías del centro de estudio"><button role="tab" aria-selected={homeCategory === 'training'} className={homeCategory === 'training' ? 'active' : ''} onClick={() => selectHomeCategory('training')}>Entrenar</button><button role="tab" aria-selected={homeCategory === 'library'} className={homeCategory === 'library' ? 'active' : ''} onClick={() => selectHomeCategory('library')}>Biblioteca</button><button role="tab" aria-selected={homeCategory === 'tracking'} className={homeCategory === 'tracking' ? 'active' : ''} onClick={() => selectHomeCategory('tracking')}>Seguimiento</button></div><section className="study-grid">{visibleCards.map(card => <button key={card.title} className="study-card" onClick={card.action}><span className="tool-icon"><Icon name={card.icon} size={25}/></span><span className="tool-copy"><strong>{card.title}</strong><small>{card.description}</small>{card.count && <em>{card.count}</em>}</span><Icon name="arrow" size={18}/></button>)}</section>{pageCount > 1 && <div className="tool-pagination" aria-label="Páginas de herramientas">{Array.from({ length: pageCount }, (_, index) => <button key={index} aria-label={`Página ${index + 1}`} aria-current={homePage === index ? 'page' : undefined} className={homePage === index ? 'active' : ''} onClick={() => setHomePage(index)}/>)}</div>}</div>
+      </section>}
 
       {view === 'library' && <section><div className="page-heading"><p className="eyebrow">{course.shortTitle} · recursos demostrativos</p><h1>Biblioteca</h1><p>Elegí una herramienta. Cada sección obtiene su contenido directamente del paquete de esta certificación.</p></div><div className="library-grid">{studyCards.filter(card => ['Glosario','Mapas conceptuales','Cuadros comparativos','Material de lectura','Flashcards','Fórmulas','Consejos de examen'].includes(card.title)).map(card => <button key={card.title} onClick={card.action}><span><Icon name={card.icon} size={29}/></span><strong>{card.title}</strong><small>{card.description}</small><em>Abrir recurso <Icon name="arrow" size={15}/></em></button>)}</div></section>}
 
