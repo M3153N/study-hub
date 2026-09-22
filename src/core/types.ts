@@ -11,6 +11,29 @@ export interface Question {
   explanation: string;
 }
 export interface GlossaryEntry { term: string; definition: string; }
+export type CourseIcon = 'orbit' | 'shield' | 'prism';
+export interface CourseTheme {
+  primary: string;
+  secondary: string;
+  glow: string;
+  icon: CourseIcon;
+  motif: 'grid' | 'circuit' | 'rays';
+}
+export interface ConceptNode { id: string; label: string; detail: string; parentId?: string; }
+export interface ConceptMap { id: string; title: string; description: string; nodes: ConceptNode[]; }
+export interface Comparison { id: string; title: string; columns: string[]; rows: string[][]; }
+export interface Lesson { id: string; title: string; summary: string; duration: string; sections: { title: string; body: string }[]; }
+export interface Flashcard { id: string; front: string; back: string; }
+export interface Formula { id: string; name: string; expression: string; description: string; }
+export interface StudyTip { id: string; title: string; body: string; }
+export interface StudyResources {
+  maps: ConceptMap[];
+  comparisons: Comparison[];
+  lessons: Lesson[];
+  flashcards: Flashcard[];
+  formulas: Formula[];
+  tips: StudyTip[];
+}
 export interface CertificationPack {
   id: string;
   shortTitle: string;
@@ -19,8 +42,10 @@ export interface CertificationPack {
   description: string;
   accent: string;
   accentSoft: string;
+  theme: CourseTheme;
   questions: Question[];
   glossary: GlossaryEntry[];
+  resources: StudyResources;
 }
 export type QuizMode = 'random' | 'linear';
 export interface SessionState {
@@ -31,6 +56,7 @@ export interface SessionState {
   position: number;
   answers: Record<string, Choice>;
   startedAt: number;
+  source?: 'practice' | 'simulation';
 }
 export interface Progress {
   answered: number;
