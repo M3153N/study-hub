@@ -13,16 +13,35 @@ export interface Question {
 export interface GlossaryEntry { term: string; definition: string; }
 export interface CertificationPack {
   id: string;
+  shortTitle: string;
   title: string;
   subtitle: string;
+  description: string;
+  accent: string;
+  accentSoft: string;
   questions: Question[];
   glossary: GlossaryEntry[];
+}
+export type QuizMode = 'random' | 'linear';
+export interface SessionState {
+  id: string;
+  mode: QuizMode;
+  difficulty: Difficulty | null;
+  questionIds: string[];
+  position: number;
+  answers: Record<string, Choice>;
+  startedAt: number;
 }
 export interface Progress {
   answered: number;
   correct: number;
   linear: Record<Difficulty, number>;
   mistakes: Record<string, number>;
+  activeSession?: SessionState;
+}
+export interface StudyProgress {
+  version: 2;
+  courses: Record<string, Progress>;
 }
 export const levels: Difficulty[] = ['basico', 'intermedio', 'avanzado'];
 export const levelNames: Record<Difficulty, string> = { basico: 'Básico', intermedio: 'Intermedio', avanzado: 'Avanzado' };
