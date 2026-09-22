@@ -180,6 +180,68 @@ footer { width: min(100% - 32px, 1440px); padding: 8px 0; min-height: 30px; }
   .compact-settings label { min-height: 47px; padding-block: 7px; }.install-panel p { font-size: 10px; }.about-panel summary { min-height: 40px; }
 }
 
+/* v0.7 themes and personalization */
+body { background: var(--color-bg, #070a12); }
+.app-shell { color: var(--color-text); background: var(--color-bg); }
+.topbar, .bottom-nav, footer { border-color: var(--color-border); background: color-mix(in srgb, var(--color-surface) 94%, transparent); }
+.study-hero, .quick-stats, .study-card, .library-grid button, .practice-form, .resume-banner,
+.question-card, .score-card, .progress-panel, .settings-list label, .install-panel, .about-panel,
+.results-view article, .answer-review, .coverage-card, .metric-pairs article, .rank-panel,
+.achievement-grid article, .personalization-view, .settings-panel { border-color: var(--color-border); background: var(--color-surface); box-shadow: 0 14px 35px var(--color-shadow); }
+.study-card:hover, .library-grid button:hover { background: var(--color-raised); }
+.app-shell p, .app-shell small, .app-shell .subtitle, .form-note, .practice-form label > span,
+.result-metrics span, .metric-pairs span, .stats-scroll small { color: var(--color-muted); }
+.primary { color: var(--color-interactive-text); background: var(--color-interactive); }
+.secondary, select, .progress-tabs button, .progress-subtabs button { color: var(--color-text); border-color: var(--color-border); background: var(--color-raised); }
+.feedback.success { color: var(--color-success); border-color: var(--color-success); background: var(--color-success-surface); }
+.feedback.error, .filter-empty { color: var(--color-danger); border-color: var(--color-danger); background: var(--color-danger-surface); }
+.options button.correct { border-color: var(--color-success); background: var(--color-success-surface); }
+.options button.wrong { border-color: var(--color-danger); background: var(--color-danger-surface); }
+[data-color-mode='light'] .course-picker select, [data-color-mode='light'] select { color: var(--color-text); background-color: var(--color-raised); }
+[data-color-mode='light'] .eyebrow, [data-color-mode='light'] .back-link { color: color-mix(in srgb, var(--accent) 78%, #111827); }
+
+[data-density='compact'] { --panel-space: 10px; --content-gap: 7px; --control-height: 38px; }
+[data-density='normal'] { --panel-space: 16px; --content-gap: 10px; --control-height: 44px; }
+[data-density='comfortable'] { --panel-space: 22px; --content-gap: 15px; --control-height: 50px; }
+[data-density] .app-main { gap: var(--content-gap); }
+[data-density] .study-card, [data-density] .library-grid button, [data-density] .settings-list label { padding: var(--panel-space); }
+[data-density] button, [data-density] select { min-height: var(--control-height); }
+
+.personalization-view { height: 100%; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; overflow: hidden; border: 0; box-shadow: none; background: transparent; }
+.settings-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.settings-tabs button { border: 1px solid var(--color-border); border-radius: 10px; color: var(--color-muted); background: var(--color-surface); font-weight: 800; }
+.settings-tabs button.active { color: var(--color-interactive-text); border-color: var(--color-interactive); background: var(--color-interactive); }
+.settings-panel { min-height: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--color-border); border-radius: 16px; padding: var(--panel-space); }
+.appearance-settings, .home-settings, .about-settings { display: grid; gap: 14px; }
+.setting-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.setting-heading strong, .setting-heading small { display: block; }.setting-heading small { margin-top: 3px; }
+.theme-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.theme-grid button { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; gap: 2px 9px; min-width: 0; border: 1px solid var(--color-border); border-radius: 12px; color: var(--color-text); background: var(--color-raised); padding: 10px; text-align: left; }
+.theme-grid button.active { border-color: var(--color-interactive); outline: 2px solid color-mix(in srgb, var(--color-interactive) 24%, transparent); }
+.theme-grid small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-preview { grid-row: 1 / 3; width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--preview-a), var(--preview-b)); box-shadow: inset 0 0 0 1px #ffffff38; }
+.choice-setting { min-width: 0; border: 0; padding: 0; margin: 0; }.choice-setting legend { color: var(--color-muted); margin-bottom: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.choice-setting > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }.choice-setting button { border: 1px solid var(--color-border); border-radius: 10px; color: var(--color-muted); background: var(--color-raised); }.choice-setting button.active { color: var(--color-interactive-text); border-color: var(--color-interactive); background: var(--color-interactive); }
+.reset-preferences { justify-self: start; }
+.home-order-list { display: grid; gap: 6px; }.home-order-list > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-raised); padding: 7px 9px; }.home-order-list label { min-width: 0; display: flex; align-items: center; gap: 9px; }.home-order-list label > span { min-width: 0; }.home-order-list strong, .home-order-list small { display: block; }.home-order-list > div > div { display: flex; gap: 4px; }.home-order-list button { width: 38px; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); background: var(--color-surface); }.home-order-list button:disabled { opacity: .3; }
+.accessibility-settings { display: grid; gap: 8px; }.accessibility-settings .install-panel { margin-top: 3px; }
+.about-settings { max-width: 760px; }.about-settings h2 { margin-bottom: 0; }.about-settings p { font-size: 13px; line-height: 1.65; margin: 0; }
+
+.focus-toggle { position: fixed; z-index: 20; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); min-height: 38px !important; border: 1px solid var(--color-border); border-radius: 99px; color: var(--color-text); background: var(--color-raised); padding: 7px 13px; box-shadow: 0 8px 24px var(--color-shadow); }
+.app-shell.focus-mode { grid-template-rows: minmax(0, 1fr); padding: 0; }.focus-mode .topbar, .focus-mode .bottom-nav, .focus-mode footer { display: none; }.focus-mode .app-main { width: min(100% - 24px, 980px); padding-block: max(52px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-bottom)); }
+
+@media (max-width: 780px) {
+  .settings-tabs { gap: 3px; }.settings-tabs button { min-width: 0; padding-inline: 3px; font-size: 10px; }
+  .settings-panel { padding: 10px; }.theme-grid { grid-template-columns: 1fr 1fr; }.theme-grid button { padding: 8px; }.theme-grid button:first-child { grid-column: 1 / -1; }
+  .setting-heading { align-items: flex-start; }.home-order-list > div { padding: 5px 7px; }.home-order-list small { display: none; }
+  .appearance-settings, .home-settings, .about-settings { gap: 9px; }.focus-mode .app-main { width: min(100% - 14px, 980px); }
+}
+
+@media (max-height: 700px) and (max-width: 780px) {
+  .personalization-view .compact-page-heading { display: none; }.personalization-view { grid-template-rows: auto minmax(0, 1fr); gap: 5px; }
+  .theme-preview { width: 27px; height: 27px; }.theme-grid small, .setting-heading small { display: none; }.appearance-settings { gap: 6px; }
+}
+
 /* v0.6 practice intelligence and gamification */
 .gamified-stats article:first-child strong { color: var(--accent-soft); font-size: clamp(15px, 2.3vh, 21px); }
 .filtered-practice { grid-template-rows: auto auto minmax(0, 1fr) auto; }
@@ -217,3 +279,15 @@ footer { width: min(100% - 32px, 1440px); padding: 8px 0; min-height: 30px; }
   .results-head .eyebrow { display: none; }.session-unlocks { flex-wrap: nowrap; overflow-x: auto; }.session-unlocks span { white-space: nowrap; padding-block: 4px; }.result-metrics article { padding-block: 5px; }.answer-review article { padding: 8px; }.answer-review h2 { font-size: 13px; }
   .progress-subtabs button { min-height: 30px; }.achievement-grid p { display: none; }.achievement-grid article { padding: 9px; }
 }
+
+/* Keep late feature styles on the active semantic palette. */
+.practice-form, .availability, .xp-burst, .result-metrics article, .result-domains span,
+.session-unlocks span, .answer-review, .answer-review summary, .answer-review article,
+.data-notice, .progress-subtabs button, .coverage-card, .metric-pairs article, .rank-panel,
+.achievement-grid article { border-color: var(--color-border); background: var(--color-surface); }
+.practice-form select, .progress-subtabs button, .result-domains span, .session-unlocks span { color: var(--color-text); }
+.results-head p:last-child, .result-metrics span, .answer-review p, .answer-review small,
+.coverage-card p, .rank-panel small, .rank-panel p, .rank-panel li, .metric-pairs span,
+.achievement-grid p, .achievement-grid small, .stat-row small { color: var(--color-muted); }
+.stat-row { border-color: var(--color-border); }
+.data-notice { color: var(--color-warning); border-color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface)); }
