@@ -5,6 +5,8 @@ Plataforma de estudio web, responsive y reutilizable para certificaciones. Inclu
 ## Funcionalidades de esta versión
 
 - Tema oscuro mobile-first, navegación inferior y acentos por certificación.
+- Interfaz fullscreen basada en `100dvh`, con áreas seguras y scroll interno solamente cuando el contenido lo requiere.
+- Progressive Web App instalable en Android e iOS, con manifiesto e iconos propios; no utiliza Service Worker ni ofrece uso offline.
 - Identidad visual configurable por curso con paletas, motivos e iconos SVG originales; no se utilizan logos oficiales.
 - Selector de cursos alimentado por un registro modular.
 - Centro de estudio con accesos funcionales a práctica, simulacros, biblioteca, consejos y progreso.
@@ -33,6 +35,8 @@ Para generar el sitio estático:
 ```bash
 npm run build
 ```
+
+La instalación se ofrece desde Configuración cuando el navegador expone el flujo nativo. En iPhone y iPad se puede usar **Compartir → Agregar a pantalla de inicio**. La aplicación conserva el funcionamiento web convencional cuando no se instala.
 
 ## GitHub Pages
 
