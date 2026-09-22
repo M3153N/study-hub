@@ -4,18 +4,22 @@ import { Icon, type IconName } from './components/Icons';
 import { ResourceView, type ResourceKind } from './components/StudyResources';
 import { useCourseProgress } from './core/progress';
 import { achievementCatalog, breakdown, rankFor, refreshAchievements, uniqueSeen } from './core/gamification';
+import { resolveTheme, themes, type Appearance, type Density, type ThemeId } from './core/themes';
 import { levelNames, levels, shuffle, type AnswerRecord, type Choice, type Difficulty, type PracticeFilters, type QuizMode, type SessionResult, type SessionState } from './core/types';
 
-type View = 'home' | 'practice' | 'quiz' | 'results' | 'library' | 'resource' | 'simulations' | 'progress' | 'settings';
+type View = 'home' | 'practice' | 'quiz' | 'results' | 'library' | 'resource' | 'simulations' | 'progress' | 'settings' | 'personalize';
 type SessionSize = 5 | 10 | 20 | 'all';
 type HomeCategory = 'training' | 'library' | 'tracking';
 type ProgressTab = 'summary' | 'levels' | 'mistakes';
 type ProgressSection = 'metrics' | 'ranks' | 'achievements';
-interface Preferences { reducedMotion: boolean; largeText: boolean; }
+type SettingsTab = 'appearance' | 'home' | 'accessibility' | 'about';
+interface Preferences { version: 2; reducedMotion: boolean; largeText: boolean; themeId: ThemeId; appearance: Appearance; density: Density; homeOrder: string[]; hiddenHome: string[]; focusMode: boolean; }
 interface InstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>; }
 
 const courseKey = 'study-hub:selected-course:v1';
-const preferencesKey = 'study-hub:preferences:v1';
+const preferencesKey = 'study-hub:preferences:v2';
+const legacyPreferencesKey = 'study-hub:preferences:v1';
+const defaultHomeOrder = ['practice','simulations','glossary','maps','comparisons','reading','flashcards','formulas','tips','progress'];
 const sizeOptions: SessionSize[] = [5, 10, 20, 'all'];
 
 function initialCourse() {
@@ -24,8 +28,13 @@ function initialCourse() {
 }
 
 function initialPreferences(): Preferences {
-  try { return { reducedMotion: false, largeText: false, ...JSON.parse(localStorage.getItem(preferencesKey) ?? '{}') as Partial<Preferences> }; }
-  catch { return { reducedMotion: false, largeText: false }; }
+  const defaults: Preferences = { version: 2, reducedMotion: false, largeText: false, themeId: 'course', appearance: 'auto', density: 'normal', homeOrder: defaultHomeOrder, hiddenHome: [], focusMode: false };
+  try {
+    const saved = localStorage.getItem(preferencesKey);
+    if (saved) return { ...defaults, ...JSON.parse(saved) as Partial<Preferences>, version: 2 };
+    const legacy = localStorage.getItem(legacyPreferencesKey);
+    return legacy ? { ...defaults, ...JSON.parse(legacy) as Partial<Preferences> } : defaults;
+  } catch { return defaults; }
 }
 
 function ProgressRing({ value, label = 'avance' }: { value: number; label?: string }) {
@@ -44,9 +53,11 @@ function App() {
   const [homePage, setHomePage] = useState(0);
   const [progressTab, setProgressTab] = useState<ProgressTab>('summary');
   const [progressSection, setProgressSection] = useState<ProgressSection>('metrics');
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
   const [filters, setFilters] = useState<PracticeFilters>({ pool: 'all', domain: 'all', topic: 'all', difficulty: 'all' });
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(() => window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
   const course = getCertification(courseId);
   const { progress, setProgress, reset } = useCourseProgress(courseId);
   const session = progress.activeSession;
@@ -79,10 +90,29 @@ function App() {
     return () => { window.removeEventListener('beforeinstallprompt', capturePrompt); window.removeEventListener('appinstalled', syncStandalone); displayMode.removeEventListener?.('change', syncStandalone); };
   }, []);
 
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const sync = () => setSystemDark(query.matches);
+    query.addEventListener?.('change', sync);
+    return () => query.removeEventListener?.('change', sync);
+  }, []);
+
+  const colorMode = preferences.appearance === 'auto' ? (systemDark ? 'dark' : 'light') : preferences.appearance;
+  const theme = resolveTheme(preferences.themeId, colorMode, course.theme);
+
+  useEffect(() => {
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.background);
+    document.documentElement.style.colorScheme = colorMode;
+  }, [theme.background, colorMode]);
+
   const style = {
-    '--accent': course.theme.primary,
-    '--accent-soft': course.theme.secondary,
-    '--course-glow': course.theme.glow,
+    '--accent': theme.accent, '--accent-soft': theme.accentSoft, '--course-glow': theme.glow,
+    '--color-bg': theme.background, '--color-surface': theme.surface, '--color-raised': theme.surfaceRaised,
+    '--color-text': theme.text, '--color-muted': theme.textMuted, '--color-border': theme.border,
+    '--color-interactive': theme.interactive, '--color-interactive-text': theme.interactiveText,
+    '--color-success': theme.success, '--color-success-surface': theme.successSurface,
+    '--color-danger': theme.danger, '--color-danger-surface': theme.dangerSurface,
+    '--color-warning': theme.warning, '--color-shadow': theme.shadow,
   } as CSSProperties;
 
   function changeCourse(id: string) {
@@ -93,7 +123,7 @@ function App() {
   }
 
   function navigate(next: View) {
-    setView(next);
+    setView(next === 'settings' ? 'personalize' : next);
     window.scrollTo({ top: 0, behavior: preferences.reducedMotion ? 'auto' : 'smooth' });
   }
 
@@ -102,10 +132,14 @@ function App() {
     navigate('resource');
   }
 
-  function updatePreference(key: keyof Preferences, value: boolean) {
-    const next = { ...preferences, [key]: value };
+  function updatePreferences(patch: Partial<Preferences>) {
+    const next = { ...preferences, ...patch, version: 2 as const };
     localStorage.setItem(preferencesKey, JSON.stringify(next));
     setPreferences(next);
+  }
+
+  function updatePreference(key: 'largeText' | 'reducedMotion', value: boolean) {
+    updatePreferences({ [key]: value });
   }
 
   function startSession(nextMode = mode, level = difficulty, requestedSize = sessionSize, source: 'practice' | 'simulation' = 'practice') {
@@ -171,24 +205,22 @@ function App() {
     if (finished) navigate('results');
   }
 
-  const studyCards: { title: string; description: string; icon: IconName; action: () => void; count?: string }[] = [
-    { title: 'Práctica', description: 'Sesiones configurables y recorridos por nivel.', icon: 'practice', action: () => navigate('practice'), count: `${course.questions.length} preguntas` },
-    { title: 'Simulacros', description: 'Una vuelta completa al banco demostrativo.', icon: 'exam', action: () => navigate('simulations') },
-    { title: 'Glosario', description: 'Definiciones esenciales para repasar rápido.', icon: 'book', action: () => openResource('glossary'), count: `${course.glossary.length} conceptos` },
-    { title: 'Mapas conceptuales', description: 'Relaciones explorables entre ideas clave.', icon: 'map', action: () => openResource('maps') },
-    { title: 'Cuadros comparativos', description: 'Diferencias importantes en una sola vista.', icon: 'compare', action: () => openResource('comparisons') },
-    { title: 'Material de lectura', description: 'Lecciones breves y progresivas.', icon: 'book', action: () => openResource('reading') },
-    { title: 'Flashcards', description: 'Practicá recuperación activa de conceptos.', icon: 'cards', action: () => openResource('flashcards'), count: `${course.resources.flashcards.length} tarjetas` },
-    { title: 'Fórmulas', description: 'Expresiones, significado e interpretación.', icon: 'formula', action: () => openResource('formulas') },
-    { title: 'Consejos de examen', description: 'Estrategias aplicables el día de la prueba.', icon: 'tips', action: () => openResource('tips') },
-    { title: 'Mi progreso', description: 'Precisión, recorridos y oportunidades de mejora.', icon: 'chart', action: () => navigate('progress') },
+  const studyCards: { id: string; category: HomeCategory; title: string; description: string; icon: IconName; action: () => void; count?: string }[] = [
+    { id: 'practice', category: 'training', title: 'Práctica', description: 'Sesiones configurables y recorridos por nivel.', icon: 'practice', action: () => navigate('practice'), count: `${course.questions.length} preguntas` },
+    { id: 'simulations', category: 'training', title: 'Simulacros', description: 'Una vuelta completa al banco demostrativo.', icon: 'exam', action: () => navigate('simulations') },
+    { id: 'glossary', category: 'library', title: 'Glosario', description: 'Definiciones esenciales para repasar rápido.', icon: 'book', action: () => openResource('glossary'), count: `${course.glossary.length} conceptos` },
+    { id: 'maps', category: 'library', title: 'Mapas conceptuales', description: 'Relaciones explorables entre ideas clave.', icon: 'map', action: () => openResource('maps') },
+    { id: 'comparisons', category: 'library', title: 'Cuadros comparativos', description: 'Diferencias importantes en una sola vista.', icon: 'compare', action: () => openResource('comparisons') },
+    { id: 'reading', category: 'library', title: 'Material de lectura', description: 'Lecciones breves y progresivas.', icon: 'book', action: () => openResource('reading') },
+    { id: 'flashcards', category: 'library', title: 'Flashcards', description: 'Practicá recuperación activa de conceptos.', icon: 'cards', action: () => openResource('flashcards'), count: `${course.resources.flashcards.length} tarjetas` },
+    { id: 'formulas', category: 'library', title: 'Fórmulas', description: 'Expresiones, significado e interpretación.', icon: 'formula', action: () => openResource('formulas') },
+    { id: 'tips', category: 'library', title: 'Consejos de examen', description: 'Estrategias aplicables el día de la prueba.', icon: 'tips', action: () => openResource('tips') },
+    { id: 'progress', category: 'tracking', title: 'Mi progreso', description: 'Precisión, recorridos y oportunidades de mejora.', icon: 'chart', action: () => navigate('progress') },
   ];
 
-  const categoryCards = studyCards.filter(card => {
-    if (homeCategory === 'training') return ['Práctica', 'Simulacros'].includes(card.title);
-    if (homeCategory === 'tracking') return card.title === 'Mi progreso';
-    return !['Práctica', 'Simulacros', 'Mi progreso'].includes(card.title);
-  });
+  const effectiveOrder = [...preferences.homeOrder.filter(id => studyCards.some(card => card.id === id)), ...studyCards.map(card => card.id).filter(id => !preferences.homeOrder.includes(id))];
+  const orderedCards = effectiveOrder.map(id => studyCards.find(card => card.id === id)!).filter(Boolean);
+  const categoryCards = orderedCards.filter(card => card.category === homeCategory && !preferences.hiddenHome.includes(card.id));
   const pageCount = Math.ceil(categoryCards.length / 2);
   const visibleCards = categoryCards.slice(homePage * 2, homePage * 2 + 2);
   const availableQuestions = filteredQuestions.filter(question => mode === 'random' || question.difficulty === difficulty);
@@ -203,17 +235,59 @@ function App() {
     setHomePage(0);
   }
 
+  function moveHomeCard(id: string, direction: -1 | 1) {
+    const order = [...effectiveOrder];
+    const index = order.indexOf(id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    updatePreferences({ homeOrder: order });
+  }
+
+  function toggleHomeCard(id: string) {
+    updatePreferences({ hiddenHome: preferences.hiddenHome.includes(id) ? preferences.hiddenHome.filter(item => item !== id) : [...preferences.hiddenHome, id] });
+  }
+
   const navSection = view === 'resource' ? 'library' : view === 'quiz' || view === 'results' ? 'practice' : view;
 
-  return <div className={`app-shell motif-${course.theme.motif} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.largeText ? 'large-text' : ''} ${isStandalone ? 'standalone' : ''}`} style={style}>
+  const focusActive = view === 'quiz' && preferences.focusMode;
+
+  return <div data-theme={preferences.themeId} data-color-mode={colorMode} data-density={preferences.density} className={`app-shell motif-${course.theme.motif} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.largeText ? 'large-text' : ''} ${isStandalone ? 'standalone' : ''} ${focusActive ? 'focus-mode' : ''}`} style={style}>
     <header className="topbar">
       <button className="brand" onClick={() => navigate('home')} aria-label="Ir al centro de estudio"><span><Icon name={course.theme.icon} size={24}/></span><div>Study Hub<small>Centro de estudio</small></div></button>
       <label className="course-picker"><span>Certificación</span><select aria-label="Cambiar certificación" value={courseId} onChange={event => changeCourse(event.target.value)}>{certifications.map(item => <option key={item.id} value={item.id}>{item.shortTitle}</option>)}</select></label>
       <nav className="desktop-nav" aria-label="Navegación principal"><button className={navSection === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Inicio</button><button className={navSection === 'practice' ? 'active' : ''} onClick={() => navigate('practice')}>Practicar</button><button className={navSection === 'library' ? 'active' : ''} onClick={() => navigate('library')}>Biblioteca</button><button className={navSection === 'progress' ? 'active' : ''} onClick={() => navigate('progress')}>Progreso</button></nav>
-      <button className={`settings-button ${view === 'settings' ? 'active' : ''}`} onClick={() => navigate('settings')} aria-label="Abrir configuración"><Icon name="settings" size={21}/></button>
+      <button className={`settings-button ${view === 'personalize' ? 'active' : ''}`} onClick={() => navigate('settings')} aria-label="Abrir configuración"><Icon name="settings" size={21}/></button>
     </header>
 
     <main className="app-main">
+      {focusActive && <button className="focus-toggle" onClick={() => updatePreferences({ focusMode: false })} aria-label="Salir del modo concentración">Salir de concentración</button>}
+
+      {view === 'personalize' && <section className="personalization-view">
+        <div className="page-heading compact-page-heading"><p className="eyebrow">Preferencias locales</p><h1>Personalización</h1></div>
+        <div className="settings-tabs" role="tablist" aria-label="Secciones de personalización">
+          {([['appearance','Apariencia'],['home','Inicio'],['accessibility','Accesibilidad'],['about','Acerca de']] as const).map(([id, label]) => <button key={id} role="tab" aria-selected={settingsTab === id} className={settingsTab === id ? 'active' : ''} onClick={() => setSettingsTab(id)}>{label}</button>)}
+        </div>
+        <div className="settings-panel">
+          {settingsTab === 'appearance' && <div className="appearance-settings">
+            <div className="setting-heading"><div><strong>Tema visual</strong><small>Se aplica a todas las certificaciones. “Curso” usa la identidad del curso activo.</small></div></div>
+            <div className="theme-grid">
+              <button className={preferences.themeId === 'course' ? 'active' : ''} onClick={() => updatePreferences({ themeId: 'course' })}><span className="theme-preview" style={{ '--preview-a': course.theme.primary, '--preview-b': course.theme.secondary } as CSSProperties}/><strong>Curso</strong><small>Identidad de {course.shortTitle}</small></button>
+              {themes.map(item => <button key={item.id} className={preferences.themeId === item.id ? 'active' : ''} onClick={() => updatePreferences({ themeId: item.id })}><span className="theme-preview" style={{ '--preview-a': item.accent, '--preview-b': item.accentSoft } as CSSProperties}/><strong>{item.name}</strong><small>{item.description}</small></button>)}
+            </div>
+            <fieldset className="choice-setting"><legend>Apariencia</legend><div>{(['light','dark','auto'] as Appearance[]).map(value => <button key={value} className={preferences.appearance === value ? 'active' : ''} aria-pressed={preferences.appearance === value} onClick={() => updatePreferences({ appearance: value })}>{value === 'light' ? 'Claro' : value === 'dark' ? 'Oscuro' : 'Automático'}</button>)}</div></fieldset>
+            <fieldset className="choice-setting"><legend>Densidad</legend><div>{(['compact','normal','comfortable'] as Density[]).map(value => <button key={value} className={preferences.density === value ? 'active' : ''} aria-pressed={preferences.density === value} onClick={() => updatePreferences({ density: value })}>{value === 'compact' ? 'Compacta' : value === 'normal' ? 'Normal' : 'Cómoda'}</button>)}</div></fieldset>
+            <button className="secondary reset-preferences" onClick={() => updatePreferences({ themeId: 'course', appearance: 'auto', density: 'normal' })}>Restaurar apariencia</button>
+          </div>}
+
+          {settingsTab === 'home' && <div className="home-settings"><div className="setting-heading"><div><strong>Herramientas de Inicio</strong><small>Elegí cuáles aparecen y ordenalas. Todas siguen disponibles desde Practicar, Biblioteca y Progreso.</small></div><button className="secondary" onClick={() => updatePreferences({ homeOrder: defaultHomeOrder, hiddenHome: [] })}>Restaurar</button></div><div className="home-order-list">{orderedCards.map((card, index) => <div key={card.id}><label><input type="checkbox" checked={!preferences.hiddenHome.includes(card.id)} onChange={() => toggleHomeCard(card.id)}/><Icon name={card.icon} size={20}/><span><strong>{card.title}</strong><small>{card.category === 'training' ? 'Entrenamiento' : card.category === 'library' ? 'Biblioteca' : 'Seguimiento'}</small></span></label><div><button onClick={() => moveHomeCard(card.id, -1)} disabled={index === 0} aria-label={`Subir ${card.title}`}>↑</button><button onClick={() => moveHomeCard(card.id, 1)} disabled={index === orderedCards.length - 1} aria-label={`Bajar ${card.title}`}>↓</button></div></div>)}</div></div>}
+
+          {settingsTab === 'accessibility' && <div className="accessibility-settings settings-list"><label><span><strong>Texto ampliado</strong><small>Aumenta el tamaño base sin ocultar funciones.</small></span><input type="checkbox" checked={preferences.largeText} onChange={event => updatePreferences({ largeText: event.target.checked })}/></label><label><span><strong>Reducir movimiento</strong><small>Desactiva animaciones y transiciones no esenciales.</small></span><input type="checkbox" checked={preferences.reducedMotion} onChange={event => updatePreferences({ reducedMotion: event.target.checked })}/></label><label><span><strong>Modo concentración</strong><small>Durante una práctica oculta la navegación y deja visible una salida.</small></span><input type="checkbox" checked={preferences.focusMode} onChange={event => updatePreferences({ focusMode: event.target.checked })}/></label><section className="install-panel" aria-label="Instalación de la aplicación"><div><strong>{isStandalone ? 'Study Hub está instalada' : 'Usar como aplicación'}</strong><p>{isStandalone ? 'Se está ejecutando en modo independiente.' : installPrompt ? 'Instalala para abrirla sin las barras del navegador.' : 'En iPhone/iPad: Compartir → Agregar a pantalla de inicio. En otros navegadores, buscá Instalar aplicación en el menú.'}</p></div>{installPrompt && !isStandalone && <button className="secondary" onClick={installApp}>Instalar</button>}</section></div>}
+
+          {settingsTab === 'about' && <div className="about-settings"><h2>Acerca de Study Hub</h2><p>Study Hub es un centro de estudio independiente. Guarda las preferencias, sesiones y el progreso únicamente en este navegador.</p><p>Sus iconos son originales y genéricos; no usa logos oficiales ni afirma afiliación o aprobación de organismos certificadores.</p><p>El contenido identificado como demostrativo es original y sirve para probar la experiencia. No se solicitan permisos ni se envían datos a servicios externos.</p></div>}
+        </div>
+      </section>}
+
       {view === 'home' && <section className="home-view view-panel">
         <section className="study-hero"><div className="course-emblem"><Icon name={course.theme.icon} size={48}/><i/><i/></div><div><p className="eyebrow">Tu centro de estudio · recursos demostrativos</p><h1>{course.title}</h1><p className="subtitle">{course.subtitle}</p><p>{course.description}</p><div className="hero-actions">{session ? <button className="primary" onClick={() => navigate('quiz')}>Continuar sesión · {session.position + 1}/{session.questionIds.length}</button> : <button className="primary" onClick={() => navigate('practice')}>Empezar a practicar</button>}<button className="secondary" onClick={() => navigate('library')}>Explorar biblioteca</button></div></div><ProgressRing value={accuracy}/></section>
         <section className="quick-stats gamified-stats" aria-label={`Resumen de ${course.title}`}><article><span>Rango</span><strong>{rank.current.name}</strong></article><article><span>XP</span><strong>{progress.xp}{rank.next ? ` / ${rank.next.xp}` : ''}</strong></article><article><span>Próximo objetivo</span><strong>{rank.next ? `${rank.next.xp - progress.xp} XP` : 'Cobertura 100%'}</strong></article></section>
