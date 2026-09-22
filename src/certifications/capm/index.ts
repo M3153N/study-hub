@@ -10,6 +10,7 @@ export const capm: CertificationPack = {
   description: 'Fundamentos, enfoques predictivos, ágiles y análisis de negocio.',
   accent: '#8b7cff',
   accentSoft: '#40d9c4',
+  theme: { primary: '#8b7cff', secondary: '#4f9dff', glow: '#6f63ff', icon: 'orbit', motif: 'grid' },
   questions: [
     { id: 'CAPM-DEMO-001', domain: 'Fundamentos', topic: 'Conceptos', difficulty: 'basico', prompt: '¿Qué caracteriza a un proyecto?', options: ['Es un esfuerzo temporal para crear un resultado único', 'Es una operación continua y repetitiva', 'No tiene objetivos definidos', 'Siempre dura menos de un año'], correct: 0, explanation: 'Un proyecto es un esfuerzo temporal orientado a producir un producto, servicio o resultado único.' },
     { id: 'CAPM-DEMO-002', domain: 'Fundamentos', topic: 'Roles', difficulty: 'basico', prompt: '¿Cuál es una responsabilidad habitual del patrocinador del proyecto?', options: ['Escribir cada actividad del cronograma', 'Proporcionar apoyo y facilitar recursos a nivel ejecutivo', 'Realizar todas las pruebas técnicas', 'Sustituir a todos los interesados'], correct: 1, explanation: 'El patrocinador apoya el proyecto a nivel ejecutivo y facilita su alineación y recursos.' },
@@ -39,5 +40,38 @@ export const capm: CertificationPack = {
     {term:'Riesgo',definition:'Evento o condición incierto que, si ocurre, afecta uno o más objetivos.'},
     {term:'Interesado',definition:'Persona, grupo u organización que puede afectar o verse afectado por el proyecto.'},
     {term:'Validación',definition:'Evaluación para determinar si una solución satisface la necesidad prevista.'}
-  ]
+  ],
+  resources: {
+    maps: [{ id: 'capm-value-map', title: 'Del proyecto al valor', description: 'Explorá cómo se conectan propósito, entrega y resultados.', nodes: [
+      { id: 'project', label: 'Proyecto', detail: 'Esfuerzo temporal orientado a un resultado único.' },
+      { id: 'need', parentId: 'project', label: 'Necesidad', detail: 'Problema u oportunidad que justifica la inversión.' },
+      { id: 'delivery', parentId: 'project', label: 'Entregables', detail: 'Resultados verificables producidos por el trabajo.' },
+      { id: 'outcome', parentId: 'delivery', label: 'Resultado', detail: 'Cambio generado cuando los entregables se utilizan.' },
+      { id: 'value', parentId: 'outcome', label: 'Valor', detail: 'Beneficio percibido por interesados y organización.' },
+    ] }],
+    comparisons: [{ id: 'capm-approaches', title: 'Predictivo y adaptativo', columns: ['Dimensión', 'Predictivo', 'Adaptativo'], rows: [
+      ['Planificación', 'Detallada al inicio', 'Progresiva e iterativa'], ['Alcance', 'Línea base controlada', 'Backlog que evoluciona'], ['Entrega', 'Fases o entrega principal', 'Incrementos frecuentes'], ['Cambio', 'Evaluación formal', 'Esperado y priorizado'],
+    ] }],
+    lessons: [{ id: 'capm-stakeholders', title: 'Interesados y comunicación', summary: 'Una introducción práctica para reconocer influencia, necesidades y canales.', duration: '6 min', sections: [
+      { title: 'Identificar antes de comunicar', body: 'Un interesado puede afectar o verse afectado por el proyecto. Registrar expectativas, influencia e impacto ayuda a decidir cómo involucrarlo.' },
+      { title: 'Diseñar la conversación', body: 'La comunicación eficaz considera qué información necesita cada persona, con qué frecuencia, por qué canal y quién es responsable.' },
+      { title: 'Revisar y adaptar', body: 'Las relaciones cambian. Revisar el involucramiento permite corregir brechas antes de que se conviertan en problemas.' },
+    ] }],
+    flashcards: [
+      { id: 'capm-fc-1', front: '¿Qué significa CPI?', back: 'Índice de desempeño de costos: EV / AC.' },
+      { id: 'capm-fc-2', front: '¿Qué representa una EDT?', back: 'La descomposición jerárquica del alcance total del trabajo.' },
+      { id: 'capm-fc-3', front: '¿Riesgo o problema?', back: 'El riesgo es incierto; el problema ya se materializó.' },
+      { id: 'capm-fc-4', front: '¿Quién ordena el Product Backlog?', back: 'El Product Owner es responsable de su gestión efectiva.' },
+    ],
+    formulas: [
+      { id: 'capm-cpi', name: 'CPI', expression: 'EV ÷ AC', description: 'Eficiencia de costos. Menor que 1 indica sobrecosto.' },
+      { id: 'capm-spi', name: 'SPI', expression: 'EV ÷ PV', description: 'Eficiencia del cronograma. Menor que 1 indica atraso.' },
+      { id: 'capm-eac', name: 'EAC', expression: 'BAC ÷ CPI', description: 'Pronóstico cuando se espera que continúe el desempeño de costos.' },
+    ],
+    tips: [
+      { id: 'capm-tip-1', title: 'Leé la situación completa', body: 'Identificá enfoque, rol y momento del proyecto antes de elegir una acción.' },
+      { id: 'capm-tip-2', title: 'Priorizá el análisis', body: 'Ante un cambio o riesgo, evaluar impactos suele preceder a ejecutar una respuesta.' },
+      { id: 'capm-tip-3', title: 'Controlá el tiempo', body: 'Marcá las preguntas dudosas y reservá minutos finales para revisarlas.' },
+    ],
+  }
 };
