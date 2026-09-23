@@ -1,8 +1,9 @@
 import { useEffect, useState, type SetStateAction } from 'react';
 import { blankProgress, type Progress, type StudyProgress } from './types';
 
-const storageKey = 'study-hub:progress:v3';
-const previousKey = 'study-hub:progress:v2';
+const storageKey = 'study-hub:progress:v4';
+const previousKey = 'study-hub:progress:v3';
+const olderKey = 'study-hub:progress:v2';
 const legacyKey = 'study-hub:progress:v1';
 
 function normalizeProgress(value?: Partial<Progress>): Progress {
@@ -14,11 +15,12 @@ function normalizeProgress(value?: Partial<Progress>): Progress {
     attempts: value?.attempts ?? [], sessions: value?.sessions ?? [],
     achievements: value?.achievements ?? {}, rewardedQuestions: value?.rewardedQuestions ?? [],
     improvedQuestions: value?.improvedQuestions ?? [], rewardedSessions: value?.rewardedSessions ?? [],
+    campaign: { ...base.campaign, ...value?.campaign }, review: value?.review ?? {}, examHistory: value?.examHistory ?? [],
   };
 }
 
 function migrateCourses(courses: Record<string, Partial<Progress>>): StudyProgress {
-  return { version: 3, courses: Object.fromEntries(Object.entries(courses).map(([id, value]) => {
+  return { version: 4, courses: Object.fromEntries(Object.entries(courses).map(([id, value]) => {
     const normalized = normalizeProgress(value);
     return [id, { ...normalized, legacyIncomplete: normalized.legacyIncomplete || (normalized.answered > 0 && normalized.attempts.length === 0) }];
   })) };
@@ -33,12 +35,14 @@ function loadProgress(): StudyProgress {
     }
     const previous = localStorage.getItem(previousKey);
     if (previous) return migrateCourses((JSON.parse(previous) as { courses?: Record<string, Partial<Progress>> }).courses ?? {});
+    const older = localStorage.getItem(olderKey);
+    if (older) return migrateCourses((JSON.parse(older) as { courses?: Record<string, Partial<Progress>> }).courses ?? {});
     const legacy = localStorage.getItem(legacyKey);
     if (legacy) return migrateCourses({ capm: JSON.parse(legacy) as Partial<Progress> });
   } catch {
     // A corrupt local value should never prevent the application from loading.
   }
-  return { version: 3, courses: {} };
+  return { version: 4, courses: {} };
 }
 
 export function useCourseProgress(courseId: string) {

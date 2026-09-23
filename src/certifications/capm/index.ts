@@ -12,6 +12,20 @@ export const capm: CertificationPack = {
   accentSoft: '#40d9c4',
   theme: { primary: '#8b7cff', secondary: '#4f9dff', glow: '#6f63ff', icon: 'orbit', motif: 'grid' },
   conceptIcons: { Interesado:'stakeholder', Interesados:'stakeholder', Roles:'project-manager', 'Director de proyecto':'project-manager', PMO:'pmo', 'Product Owner':'product-owner', Patrocinador:'sponsor', Equipo:'team', Riesgo:'risk', Riesgos:'risk', Planificación:'planning', Cronograma:'schedule', Alcance:'scope', CPI:'cost', SPI:'schedule', Calidad:'quality', 'Enfoques predictivos':'predictive', 'Enfoques ágiles':'agile', Híbrido:'hybrid', 'Product Backlog':'product-owner' },
+  exam: { id:'capm-demo-exam', title:'Simulacro CAPM demostrativo', durationMinutes:18, questionCount:18, passingPercent:70, domainWeights:{'Fundamentos':.28,'Enfoques predictivos':.22,'Enfoques ágiles':.28,'Análisis de negocio':.22} },
+  campaign: { id:'capm-campaign-v1', certificationId:'capm', chapters:[
+    { id:'capm-foundations', title:'El punto de partida', description:'Proyecto, roles e interesados.', nodes:[
+      {id:'capm-read-stakeholders',title:'Leer: interesados',kind:'resource',resource:{kind:'reading',id:'capm-stakeholders'},rewardXp:5},
+      {id:'capm-practice-foundations',title:'Fundamentos en acción',kind:'practice',difficulty:'basico',questionIds:['CAPM-DEMO-001','CAPM-DEMO-002','CAPM-DEMO-006'],requiredCorrect:2,rewardXp:15},
+      {id:'capm-challenge-foundations',title:'Desafío del capítulo',kind:'challenge',questionIds:['CAPM-DEMO-001','CAPM-DEMO-002','CAPM-DEMO-006','CAPM-DEMO-009'],requiredCorrect:3,rewardXp:20}]},
+    { id:'capm-delivery', title:'Planificar y entregar', description:'Alcance, cronograma, costos y enfoques.', nodes:[
+      {id:'capm-map-value',title:'Mapa del valor',kind:'resource',resource:{kind:'maps',id:'capm-value-map'},rewardXp:5},
+      {id:'capm-practice-delivery',title:'Rutas de entrega',kind:'practice',difficulty:'intermedio',questionIds:['CAPM-DEMO-003','CAPM-DEMO-007','CAPM-DEMO-011','CAPM-DEMO-012'],requiredCorrect:3,rewardXp:15},
+      {id:'capm-review-delivery',title:'Repaso inteligente',kind:'review',rewardXp:10}]},
+    { id:'capm-decisions', title:'Decidir con contexto', description:'Cambios, pronósticos y validación.', nodes:[
+      {id:'capm-read-formulas',title:'Fórmulas esenciales',kind:'resource',resource:{kind:'formulas'},rewardXp:5},
+      {id:'capm-final',title:'Desafío final',kind:'challenge',difficulty:'avanzado',questionIds:['CAPM-DEMO-013','CAPM-DEMO-014','CAPM-DEMO-015','CAPM-DEMO-016','CAPM-DEMO-017','CAPM-DEMO-018'],requiredCorrect:4,rewardXp:30}]}
+  ]},
   questions: [
     { id: 'CAPM-DEMO-001', domain: 'Fundamentos', topic: 'Conceptos', difficulty: 'basico', prompt: '¿Qué caracteriza a un proyecto?', options: ['Es un esfuerzo temporal para crear un resultado único', 'Es una operación continua y repetitiva', 'No tiene objetivos definidos', 'Siempre dura menos de un año'], correct: 0, explanation: 'Un proyecto es un esfuerzo temporal orientado a producir un producto, servicio o resultado único.' },
     { id: 'CAPM-DEMO-002', domain: 'Fundamentos', topic: 'Roles', difficulty: 'basico', prompt: '¿Cuál es una responsabilidad habitual del patrocinador del proyecto?', options: ['Escribir cada actividad del cronograma', 'Proporcionar apoyo y facilitar recursos a nivel ejecutivo', 'Realizar todas las pruebas técnicas', 'Sustituir a todos los interesados'], correct: 1, explanation: 'El patrocinador apoya el proyecto a nivel ejecutivo y facilita su alineación y recursos.' },
