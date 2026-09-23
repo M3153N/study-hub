@@ -5,13 +5,16 @@ import { ResourceView, type ResourceKind } from './components/StudyResources';
 import { GameHome, type HomeMetric, type HomeStyle } from './components/GameHome';
 import { ProfileView } from './components/ProfileView';
 import { ConceptIcon } from './components/ConceptIcons';
+import { CampaignView } from './components/CampaignView';
+import { ExamView } from './components/ExamView';
 import { useCourseProgress } from './core/progress';
 import { useLocalProfile } from './core/profile';
+import { reviewBuckets, scheduleReview, type RecallGrade } from './core/spacedRepetition';
 import { achievementCatalog, breakdown, rankFor, refreshAchievements, uniqueSeen } from './core/gamification';
 import { resolveTheme, themes, type Appearance, type Density, type ThemeId } from './core/themes';
-import { levelNames, levels, shuffle, type AnswerRecord, type Choice, type Difficulty, type PracticeFilters, type QuizMode, type SessionResult, type SessionState } from './core/types';
+import { levelNames, levels, shuffle, type AnswerRecord, type CampaignNodeDefinition, type Choice, type Difficulty, type ExamResult, type ExamState, type PracticeFilters, type QuizMode, type SessionResult, type SessionState } from './core/types';
 
-type View = 'home' | 'gamehome' | 'profile' | 'practice' | 'quiz' | 'results' | 'library' | 'resource' | 'simulations' | 'progress' | 'settings' | 'personalize';
+type View = 'home' | 'gamehome' | 'profile' | 'campaign' | 'training' | 'exam' | 'exam-results' | 'practice' | 'quiz' | 'results' | 'library' | 'resource' | 'simulations' | 'progress' | 'settings' | 'personalize';
 type SessionSize = 5 | 10 | 20 | 'all';
 type HomeCategory = 'training' | 'library' | 'tracking';
 type ProgressTab = 'summary' | 'levels' | 'mistakes';
@@ -24,7 +27,7 @@ const courseKey = 'study-hub:selected-course:v1';
 const preferencesKey = 'study-hub:preferences:v3';
 const previousPreferencesKey = 'study-hub:preferences:v2';
 const legacyPreferencesKey = 'study-hub:preferences:v1';
-const defaultHomeOrder = ['practice','simulations','glossary','maps','comparisons','reading','flashcards','formulas','tips','progress'];
+const defaultHomeOrder = ['campaign','training','practice','simulations','glossary','maps','comparisons','reading','flashcards','formulas','tips','progress'];
 const sizeOptions: SessionSize[] = [5, 10, 20, 'all'];
 
 function initialCourse() {
@@ -65,6 +68,8 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(() => window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const [online, setOnline] = useState(navigator.onLine);
+  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const course = getCertification(courseId);
   const { progress, studyProgress, setProgress, reset } = useCourseProgress(courseId);
   const { profile, updateProfile } = useLocalProfile();
@@ -75,6 +80,7 @@ function App() {
   const seen = useMemo(() => uniqueSeen(progress), [progress.attempts]);
   const rank = rankFor(progress.xp);
   const coverage = course.questions.length ? Math.round(seen.size / course.questions.length * 100) : 0;
+  const reviews = useMemo(() => reviewBuckets(progress.review, course.questions.map(question => question.id)), [progress.review, course.questions]);
   const counts = useMemo(() => Object.fromEntries(levels.map(level => [level, course.questions.filter(question => question.difficulty === level).length])) as Record<Difficulty, number>, [course]);
   const mistakes = useMemo(() => Object.entries(progress.mistakes).sort((a, b) => b[1] - a[1]).map(([id, count]) => ({ question: course.questions.find(item => item.id === id), count })).filter(item => item.question), [progress.mistakes, course]);
   const domains = useMemo(() => [...new Set(course.questions.map(question => question.domain))].sort(), [course]);
@@ -97,6 +103,8 @@ function App() {
     displayMode.addEventListener?.('change', syncStandalone);
     return () => { window.removeEventListener('beforeinstallprompt', capturePrompt); window.removeEventListener('appinstalled', syncStandalone); displayMode.removeEventListener?.('change', syncStandalone); };
   }, []);
+
+  useEffect(()=>{const sync=()=>setOnline(navigator.onLine);const update=(event:Event)=>setWaitingWorker((event as CustomEvent<ServiceWorkerRegistration>).detail.waiting);window.addEventListener('online',sync);window.addEventListener('offline',sync);window.addEventListener('study-hub-update',update);return()=>{window.removeEventListener('online',sync);window.removeEventListener('offline',sync);window.removeEventListener('study-hub-update',update)}},[]);
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-color-scheme: dark)');
@@ -162,6 +170,32 @@ function App() {
     navigate('quiz');
   }
 
+  function startQuestionSet(questionIds: string[], source: 'campaign' | 'review', campaignNodeId?: string) {
+    if (session && !window.confirm('Hay una sesión activa. ¿Querés reemplazarla?')) return;
+    const ids = questionIds.filter(id => course.questions.some(question => question.id === id));
+    if (!ids.length) return;
+    const nextSession: SessionState = { id:`${course.id}-${source}-${Date.now()}`, mode:'random', difficulty:null, questionIds:ids, position:0, answers:{}, startedAt:Date.now(), source, campaignNodeId };
+    setProgress(previous=>({...previous,activeSession:nextSession,campaign:campaignNodeId?{...previous.campaign,currentNodeId:campaignNodeId}:previous.campaign})); navigate('quiz');
+  }
+
+  function openCampaignNode(node: CampaignNodeDefinition) {
+    if (node.kind === 'review') { startReview(node.id); return; }
+    startQuestionSet(node.questionIds ?? [], 'campaign', node.id);
+  }
+
+  function completeResourceNode(node: CampaignNodeDefinition) {
+    if (!node.resource) return;
+    const already = progress.campaign.rewardedNodes.includes(node.id);
+    setProgress(previous=>({...previous,xp:previous.xp+(already?0:(node.rewardXp??0)),campaign:{...previous.campaign,currentNodeId:node.id,completedNodes:previous.campaign.completedNodes.includes(node.id)?previous.campaign.completedNodes:[...previous.campaign.completedNodes,node.id],rewardedNodes:already?previous.campaign.rewardedNodes:[...previous.campaign.rewardedNodes,node.id]}}));
+    openResource(node.resource.kind);
+  }
+
+  function startReview(campaignNodeId?: string) {
+    const ids=[...reviews.dueIds,...reviews.reinforcementIds.filter(id=>!reviews.dueIds.includes(id))].slice(0,10);
+    const fallback=reviews.newIds.slice(0,Math.max(1,10-ids.length));
+    startQuestionSet([...ids,...fallback], 'review', campaignNodeId);
+  }
+
   async function installApp() {
     if (!installPrompt) return;
     await installPrompt.prompt();
@@ -183,8 +217,13 @@ function App() {
       const improvementReward = isCorrect && reviewedError && !previous.improvedQuestions.includes(current.id);
       const gainedXp = Number(newReward) * 10 + Number(improvementReward) * 5;
       const attempt: AnswerRecord = { id: recordId, courseId: course.id, sessionId: active.id, questionId: current.id, selected: choice, correct: isCorrect, answeredAt: Date.now(), mode: active.mode, source: active.source ?? 'practice', xp: gainedXp, wasNew, reviewedError };
-      return { ...previous, answered: previous.answered + 1, correct: previous.correct + Number(isCorrect), xp: previous.xp + gainedXp, attempts: [...previous.attempts, attempt], rewardedQuestions: newReward ? [...previous.rewardedQuestions, current.id] : previous.rewardedQuestions, improvedQuestions: improvementReward ? [...previous.improvedQuestions, current.id] : previous.improvedQuestions, mistakes: isCorrect ? previous.mistakes : { ...previous.mistakes, [current.id]: (previous.mistakes[current.id] ?? 0) + 1 }, activeSession: { ...active, answers: { ...active.answers, [current.id]: choice } } };
+      return { ...previous, answered: previous.answered + 1, correct: previous.correct + Number(isCorrect), xp: previous.xp + gainedXp, attempts: [...previous.attempts, attempt], rewardedQuestions: newReward ? [...previous.rewardedQuestions, current.id] : previous.rewardedQuestions, improvedQuestions: improvementReward ? [...previous.improvedQuestions, current.id] : previous.improvedQuestions, mistakes: isCorrect ? previous.mistakes : { ...previous.mistakes, [current.id]: (previous.mistakes[current.id] ?? 0) + 1 }, review: { ...previous.review, [current.id]: scheduleReview(current.id, previous.review[current.id], isCorrect ? 'good' : 'again') }, activeSession: { ...active, answers: { ...active.answers, [current.id]: choice } } };
     });
+  }
+
+  function gradeRecall(grade: RecallGrade) {
+    if (!current) return;
+    setProgress(previous=>({...previous,review:{...previous.review,[current.id]:scheduleReview(current.id,previous.review[current.id],grade)}}));
   }
 
   function advance() {
@@ -201,8 +240,11 @@ function App() {
       const todayAttempts = previous.attempts.filter(attempt => new Date(attempt.answeredAt).toLocaleDateString() === today);
       const completedChallenges = [todayAttempts.filter(attempt => attempt.wasNew).length >= 5 ? '5 nuevas hoy' : '', todayAttempts.filter(attempt => attempt.reviewedError).length >= 3 ? '3 errores repasados hoy' : ''].filter(Boolean);
       const verifiedCorrect = active.questionIds.filter(id => { const question = course.questions.find(item => item.id === id); return question && active.answers[id] === question.correct; }).length;
-      const preliminary: SessionResult = { id: active.id, completedAt: Date.now(), questionIds: active.questionIds, answers: active.answers, correct: verifiedCorrect, newUnique: sessionAttempts.filter(attempt => attempt.wasNew).length, earnedXp: sessionAttempts.reduce((sum, attempt) => sum + attempt.xp, 0) + completionXp, unlocked: [], completedChallenges, source: active.source ?? 'practice', mode: active.mode };
-      const withSession = { ...previous, linear, activeSession: undefined, sessions: [...previous.sessions, preliminary], rewardedSessions: [...previous.rewardedSessions, active.id], xp: previous.xp + completionXp };
+      const campaignNode = active.campaignNodeId ? course.campaign?.chapters.flatMap(chapter=>chapter.nodes).find(node=>node.id===active.campaignNodeId) : undefined;
+      const campaignPassed = Boolean(campaignNode && verifiedCorrect >= (campaignNode.requiredCorrect ?? 0));
+      const nodeReward = campaignPassed && campaignNode && !previous.campaign.rewardedNodes.includes(campaignNode.id) ? campaignNode.rewardXp ?? 0 : 0;
+      const preliminary: SessionResult = { id: active.id, completedAt: Date.now(), questionIds: active.questionIds, answers: active.answers, correct: verifiedCorrect, newUnique: sessionAttempts.filter(attempt => attempt.wasNew).length, earnedXp: sessionAttempts.reduce((sum, attempt) => sum + attempt.xp, 0) + completionXp + nodeReward, unlocked: [], completedChallenges, source: active.source ?? 'practice', mode: active.mode };
+      const withSession = { ...previous, linear, activeSession: undefined, sessions: [...previous.sessions, preliminary], rewardedSessions: [...previous.rewardedSessions, active.id], xp: previous.xp + completionXp + nodeReward, campaign: campaignPassed && campaignNode ? { ...previous.campaign, currentNodeId: campaignNode.id, completedNodes: previous.campaign.completedNodes.includes(campaignNode.id) ? previous.campaign.completedNodes : [...previous.campaign.completedNodes,campaignNode.id], rewardedNodes: previous.campaign.rewardedNodes.includes(campaignNode.id) ? previous.campaign.rewardedNodes : [...previous.campaign.rewardedNodes,campaignNode.id] } : previous.campaign };
       const achievementUpdate = refreshAchievements(withSession, course.questions, preliminary.completedAt);
       const badgeXp = achievementUpdate.unlocked.length * 20;
       const previousRank = rankFor(Math.max(0, previous.xp - sessionAttempts.reduce((sum, attempt) => sum + attempt.xp, 0))).current.name;
@@ -213,9 +255,34 @@ function App() {
     if (finished) navigate('results');
   }
 
+  function startExam() {
+    if (progress.activeExam && !window.confirm('Ya hay un simulacro guardado. ¿Querés reemplazarlo?')) return;
+    const definition=course.exam;
+    const limit=Math.min(definition.questionCount,course.questions.length);
+    const selectedQuestions=definition.domainWeights?Object.entries(definition.domainWeights).reduce<typeof course.questions>((chosen,[domain,weight])=>{
+      const available=shuffle(course.questions.filter(question=>question.domain===domain&&!chosen.some(item=>item.id===question.id)));
+      const quota=Math.max(0,Math.round(limit*weight));
+      return [...chosen,...available.slice(0,Math.min(quota,limit-chosen.length))];
+    },[]):[];
+    const remaining=shuffle(course.questions.filter(question=>!selectedQuestions.some(item=>item.id===question.id)));
+    const questions=shuffle([...selectedQuestions,...remaining.slice(0,limit-selectedQuestions.length)]);
+    const exam:ExamState={id:`${course.id}-exam-${Date.now()}`,definitionId:definition.id,questionIds:questions.map(q=>q.id),answers:{},marked:[],position:0,startedAt:Date.now(),durationSeconds:definition.durationMinutes*60,pausedSeconds:0};
+    setProgress(previous=>({...previous,activeExam:exam}));navigate('exam');
+  }
+
+  function updateExam(exam:ExamState){setProgress(previous=>({...previous,activeExam:exam}));}
+
+  function submitExam(force = false) {
+    const exam=progress.activeExam;if(!exam)return;
+    if(!force&&Object.keys(exam.answers).length<exam.questionIds.length&&!window.confirm('Quedan preguntas sin responder. ¿Entregar igualmente?'))return;
+    setProgress(previous=>{const active=previous.activeExam;if(!active||previous.examHistory.some(result=>result.id===active.id))return previous;let answered=previous.answered,correct=previous.correct,xp=previous.xp;let attempts=[...previous.attempts];let mistakes={...previous.mistakes};let review={...previous.review};let rewarded=[...previous.rewardedQuestions];let improved=[...previous.improvedQuestions];let verified=0;for(const id of active.questionIds){const question=course.questions.find(q=>q.id===id);const selected=active.answers[id];if(!question||selected===undefined)continue;const recordId=`${active.id}:${id}`;if(attempts.some(a=>a.id===recordId))continue;const isCorrect=selected===question.correct;const wasNew=!attempts.some(a=>a.questionId===id);const reviewedError=attempts.some(a=>a.questionId===id&&!a.correct);const newReward=isCorrect&&wasNew&&!rewarded.includes(id);const improvementReward=isCorrect&&reviewedError&&!improved.includes(id);const gained=Number(newReward)*10+Number(improvementReward)*5;attempts.push({id:recordId,courseId:course.id,sessionId:active.id,questionId:id,selected,correct:isCorrect,answeredAt:Date.now(),mode:'random',source:'simulation',xp:gained,wasNew,reviewedError});answered++;correct+=Number(isCorrect);verified+=Number(isCorrect);xp+=gained;if(newReward)rewarded.push(id);if(improvementReward)improved.push(id);if(!isCorrect)mistakes[id]=(mistakes[id]??0)+1;review[id]=scheduleReview(id,review[id],isCorrect?'good':'again');}const result:ExamResult={id:active.id,completedAt:Date.now(),questionIds:active.questionIds,answers:active.answers,marked:active.marked,correct:verified,durationSeconds:Math.min(active.durationSeconds,Math.floor((Date.now()-active.startedAt)/1000))};return{...previous,answered,correct,xp,attempts,mistakes,review,rewardedQuestions:rewarded,improvedQuestions:improved,activeExam:undefined,examHistory:[...previous.examHistory,result]};});navigate('exam-results');
+  }
+
   const studyCards: { id: string; category: HomeCategory; title: string; description: string; icon: IconName; action: () => void; count?: string }[] = [
+    { id: 'campaign', category: 'training', title: 'Campaña', description: 'Mapa progresivo con etapas y desafíos reales.', icon: 'map', action: () => navigate('campaign') },
+    { id: 'training', category: 'training', title: 'Entrenamiento', description: 'Repaso inteligente según errores y fechas.', icon: 'cards', action: () => navigate('training'), count: `${reviews.dueIds.length} para hoy` },
     { id: 'practice', category: 'training', title: 'Partida libre', description: 'Sesión configurable por banco, modalidad, dificultad y cantidad.', icon: 'practice', action: () => navigate('practice'), count: `${course.questions.length} preguntas` },
-    { id: 'simulations', category: 'training', title: 'Simulacros', description: 'Una vuelta completa al banco demostrativo.', icon: 'exam', action: () => navigate('simulations') },
+    { id: 'simulations', category: 'training', title: 'Simulacros', description: 'Examen demostrativo con tiempo y revisión.', icon: 'exam', action: () => navigate('simulations') },
     { id: 'glossary', category: 'library', title: 'Glosario', description: 'Definiciones esenciales para repasar rápido.', icon: 'book', action: () => openResource('glossary'), count: `${course.glossary.length} conceptos` },
     { id: 'maps', category: 'library', title: 'Mapas conceptuales', description: 'Relaciones explorables entre ideas clave.', icon: 'map', action: () => openResource('maps') },
     { id: 'comparisons', category: 'library', title: 'Cuadros comparativos', description: 'Diferencias importantes en una sola vista.', icon: 'compare', action: () => openResource('comparisons') },
@@ -268,7 +335,7 @@ function App() {
     updatePreferences({ homeMetrics: preferences.homeMetrics.includes(metric) ? preferences.homeMetrics.filter(item => item !== metric) : [...preferences.homeMetrics, metric] });
   }
 
-  const navSection = view === 'gamehome' || view === 'profile' ? 'home' : view === 'resource' ? 'library' : view === 'quiz' || view === 'results' ? 'practice' : view;
+  const navSection = ['gamehome','profile','campaign'].includes(view) ? 'home' : view === 'resource' ? 'library' : ['quiz','results','training','exam','exam-results','simulations'].includes(view) ? 'practice' : view;
 
   const focusActive = view === 'quiz' && preferences.focusMode;
 
@@ -280,12 +347,22 @@ function App() {
       <button className={`settings-button ${view === 'personalize' ? 'active' : ''}`} onClick={() => navigate('settings')} aria-label="Abrir configuración"><Icon name="settings" size={21}/></button>
     </header>
 
+    {(!online || waitingWorker) && <aside className="connection-status" role="status"><span>{online?'Nueva versión disponible':'Sin conexión · tus datos siguen guardándose localmente'}</span>{waitingWorker&&<button onClick={()=>waitingWorker.postMessage({type:'SKIP_WAITING'})}>Actualizar cuando estés listo</button>}</aside>}
+
     <main className="app-main">
       {focusActive && <button className="focus-toggle" onClick={() => updatePreferences({ focusMode: false })} aria-label="Salir del modo concentración">Salir de concentración</button>}
 
-      {view === 'gamehome' && <GameHome alias={profile.alias} avatar={profile.avatar} frame={profile.frame} style={preferences.homeStyle} courseTitle={course.shortTitle} xp={progress.xp} rank={rank.current.name} nextXp={rank.next?.xp} accuracy={accuracy} coverage={coverage} sessionLabel={session ? `Pregunta ${session.position + 1} de ${session.questionIds.length}` : undefined} onPrimary={() => navigate(session ? 'quiz' : 'practice')} onProfile={() => navigate('profile')} cards={orderedCards} hidden={preferences.hiddenHome} metrics={preferences.homeMetrics} reducedMotion={preferences.reducedMotion} onMove={moveHomeCard} onMoveTo={moveHomeCardTo} onToggle={toggleHomeCard} onToggleMetric={toggleHomeMetric} onRestore={() => updatePreferences({ homeOrder: defaultHomeOrder, hiddenHome: [], homeMetrics: ['xp','rank','accuracy','coverage'] })}/>}
+      {view === 'gamehome' && <GameHome alias={profile.alias} avatar={profile.avatar} frame={profile.frame} style={preferences.homeStyle} courseTitle={course.shortTitle} xp={progress.xp} rank={rank.current.name} nextXp={rank.next?.xp} accuracy={accuracy} coverage={coverage} sessionLabel={session ? `Pregunta ${session.position + 1} de ${session.questionIds.length}` : progress.activeExam ? 'Simulacro guardado' : reviews.dueIds.length ? `${reviews.dueIds.length} repasos para hoy` : progress.campaign.currentNodeId ? 'Continuar campaña' : 'Comenzar campaña'} onPrimary={() => navigate(session ? 'quiz' : progress.activeExam ? 'exam' : reviews.dueIds.length ? 'training' : 'campaign')} onProfile={() => navigate('profile')} cards={orderedCards} hidden={preferences.hiddenHome} metrics={preferences.homeMetrics} reducedMotion={preferences.reducedMotion} onMove={moveHomeCard} onMoveTo={moveHomeCardTo} onToggle={toggleHomeCard} onToggleMetric={toggleHomeMetric} onRestore={() => updatePreferences({ homeOrder: defaultHomeOrder, hiddenHome: [], homeMetrics: ['xp','rank','accuracy','coverage'] })}/>}
 
       {view === 'profile' && <ProfileView profile={profile} progress={studyProgress} courses={certifications} onChange={updateProfile} onBack={() => navigate('home')}/>}
+
+      {view === 'campaign' && <CampaignView course={course} completed={progress.campaign.completedNodes} current={progress.campaign.currentNodeId} onBack={()=>navigate('home')} onStart={openCampaignNode} onReview={node=>startReview(node.id)} onResource={completeResourceNode} onReturn={()=>document.getElementById(`node-${progress.campaign.currentNodeId}`)?.scrollIntoView({block:'center',behavior:preferences.reducedMotion?'auto':'smooth'})}/>}
+
+      {view === 'training' && <section className="training-view"><button className="back-link" onClick={()=>navigate('home')}>← Inicio</button><div className="page-heading compact-page-heading"><p className="eyebrow">Repetición espaciada · {course.shortTitle}</p><h1>Entrenamiento</h1><p>Las fechas cambian únicamente cuando respondés. No perdés XP por posponer un repaso.</p></div><div className="review-summary"><article><span>Para hoy</span><strong>{reviews.dueIds.length}</strong></article><article><span>Refuerzo</span><strong>{reviews.reinforcementIds.length}</strong></article><article><span>Nuevas</span><strong>{reviews.newIds.length}</strong></article><article><span>Dominadas</span><strong>{reviews.masteredIds.length}</strong></article></div><button className="primary review-launch" onClick={()=>startReview()} disabled={!reviews.dueIds.length&&!reviews.reinforcementIds.length&&!reviews.newIds.length}>Iniciar entrenamiento</button><div className="upcoming-reviews"><h2>Próximos repasos</h2>{reviews.upcoming.length?reviews.upcoming.slice(0,10).map(item=>{const question=course.questions.find(q=>q.id===item.questionId);return <article key={item.questionId}><div><strong>{question?.topic}</strong><small>{question?.domain} · intervalo {item.intervalDays} días</small></div><time>{new Date(item.dueAt).toLocaleDateString()}</time></article>}):<p>No hay repasos futuros todavía. Empezá con preguntas nuevas.</p>}</div></section>}
+
+      {view === 'exam' && progress.activeExam && <ExamView course={course} state={progress.activeExam} onChange={updateExam} onSubmit={value=>submitExam(value===true)} onExit={()=>navigate('home')}/>}
+      {view === 'exam' && !progress.activeExam && <div className="resource-empty"><h1>No hay simulacro activo</h1><button className="primary" onClick={()=>navigate('simulations')}>Configurar simulacro</button></div>}
+      {view === 'exam-results' && progress.examHistory.length>0 && (()=>{const result=progress.examHistory[progress.examHistory.length-1];const percent=Math.round(result.correct/Math.max(1,result.questionIds.length)*100);const domainResults=[...new Set(result.questionIds.map(id=>course.questions.find(q=>q.id===id)?.domain).filter(Boolean))].map(domain=>{const questions=result.questionIds.map(id=>course.questions.find(q=>q.id===id)).filter(q=>q?.domain===domain);return{domain,correct:questions.filter(q=>q&&result.answers[q.id]===q.correct).length,total:questions.length}});return <section className="exam-results"><button className="back-link" onClick={()=>navigate('home')}>← Inicio</button><div className="results-head"><div><p className="eyebrow">Resultado demostrativo · {course.shortTitle}</p><h1>{percent}% · {percent>=course.exam.passingPercent?'Objetivo alcanzado':'Conviene reforzar'}</h1><p>No representa una garantía de aprobación oficial.</p></div><div className="xp-burst"><strong>{result.correct}/{result.questionIds.length}</strong><span>aciertos</span></div></div><div className="result-metrics"><article><span>Tiempo usado</span><strong>{Math.floor(result.durationSeconds/60)} min</strong></article><article><span>Marcadas</span><strong>{result.marked.length}</strong></article><article><span>Umbral demo</span><strong>{course.exam.passingPercent}%</strong></article><article><span>Errores</span><strong>{result.questionIds.length-result.correct}</strong></article></div><div className="exam-domain-results" aria-label="Resultados por dominio">{domainResults.map(item=><article key={item.domain}><span>{item.domain}</span><strong>{item.correct}/{item.total}</strong><small>{item.correct===item.total?'Dominado':item.correct===0?'Prioridad de refuerzo':'Seguir practicando'}</small></article>)}</div><div className="answer-review open-review">{result.questionIds.map((id,index)=>{const question=course.questions.find(q=>q.id===id);if(!question)return null;const chosen=result.answers[id];return <article key={id}><span className={chosen===question.correct?'review-ok':'review-bad'}>{index+1} · {chosen===question.correct?'Correcta':'A reforzar'}</span><h2>{question.prompt}</h2><p>Tu respuesta: <b>{chosen===undefined?'Sin respuesta':question.options[chosen]}</b></p><p>Correcta: <b>{question.options[question.correct]}</b></p><small>{question.explanation}</small></article>})}</div></section>})()}
 
       {view === 'personalize' && <section className="personalization-view">
         <div className="page-heading compact-page-heading"><p className="eyebrow">Preferencias locales</p><h1>Personalización</h1></div>
@@ -325,9 +402,10 @@ function App() {
 
       {view === 'practice' && <section className="practice-view filtered-practice"><div className="page-heading compact-page-heading"><p className="eyebrow">Práctica · {course.shortTitle}</p><h1>Elegí qué practicar</h1></div>{session && <div className="resume-banner compact-resume"><div><strong>Sesión guardada</strong><p>{session.position + 1}/{session.questionIds.length} · respuestas y posición conservadas</p></div><button className="secondary" onClick={() => navigate('quiz')}>Reanudar</button></div>}<form className="practice-form filter-form" onSubmit={event => { event.preventDefault(); startSession(); }}><label><span>Preguntas</span><select value={filters.pool} onChange={event => setFilters(previous => ({ ...previous, pool: event.target.value as PracticeFilters['pool'] }))}><option value="all">Todas</option><option value="new">Solo nuevas</option><option value="mistakes">Repasar errores</option></select></label><label><span>Dominio</span><select value={filters.domain} onChange={event => setFilters(previous => ({ ...previous, domain: event.target.value, topic: 'all' }))}><option value="all">Todos</option>{domains.map(domain => <option key={domain}>{domain}</option>)}</select></label><label><span>Tema</span><select value={filters.topic} onChange={event => setFilters(previous => ({ ...previous, topic: event.target.value }))}><option value="all">Todos</option>{topics.map(topic => <option key={topic}>{topic}</option>)}</select></label><label><span>Modalidad</span><select value={mode} onChange={event => setMode(event.target.value as QuizMode)}><option value="random">Aleatoria</option><option value="linear">Lineal</option></select></label><label><span>Dificultad</span><select value={mode === 'linear' ? difficulty : filters.difficulty} onChange={event => mode === 'linear' ? setDifficulty(event.target.value as Difficulty) : setFilters(previous => ({ ...previous, difficulty: event.target.value as PracticeFilters['difficulty'] }))}>{mode === 'random' && <option value="all">Todas</option>}{levels.map(level => <option key={level} value={level}>{levelNames[level]}</option>)}</select></label><label><span>Cantidad</span><select value={sessionSize} onChange={event => setSessionSize(event.target.value === 'all' ? 'all' : Number(event.target.value) as SessionSize)}>{sizeOptions.map(size => <option key={size} value={size}>{size === 'all' ? `Todas (${availableQuestions.length})` : `${size} (hasta ${Math.min(size, availableQuestions.length)})`}</option>)}</select></label><div className={`availability ${availableQuestions.length ? '' : 'empty'}`}><strong>{availableQuestions.length}</strong><span>disponibles</span></div><button className="primary practice-launch" type="submit" disabled={!availableQuestions.length}>{session ? 'Iniciar y reemplazar' : 'Iniciar sesión'}</button></form>{!availableQuestions.length ? <p className="filter-empty">No hay preguntas que coincidan. Probá cambiar {filters.pool !== 'all' ? 'el tipo de preguntas' : filters.topic !== 'all' ? 'el tema' : filters.domain !== 'all' ? 'el dominio' : 'la dificultad'}.</p> : <p className="form-note">Sin repeticiones dentro de la sesión. En modo lineal, solo avanza la ruta de la dificultad elegida al responder.</p>}</section>}
 
-      {view === 'simulations' && <section className="simulation-view"><button className="back-link" onClick={() => navigate('home')}>← Volver al inicio</button><div className="simulation-card"><span className="simulation-icon"><Icon name="exam" size={42}/></span><p className="eyebrow">Simulacro demostrativo</p><h1>Recorré todo el banco</h1><p>Una sesión aleatoria con las {course.questions.length} preguntas disponibles de {course.shortTitle}. Podés salir y reanudar en cualquier momento. No representa un examen oficial.</p><div className="simulation-facts"><span><b>{course.questions.length}</b> preguntas</span><span><b>Sin límite</b> de tiempo</span><span><b>Con</b> explicaciones</span></div><button className="primary" onClick={() => startSession('random', difficulty, 'all', 'simulation')}>Iniciar simulacro</button></div></section>}
+      {view === 'simulations' && <section className="simulation-view"><button className="back-link" onClick={() => navigate('home')}>← Volver al inicio</button><div className="simulation-card"><span className="simulation-icon"><Icon name="exam" size={42}/></span><p className="eyebrow">Simulacro demostrativo configurable por curso</p><h1>{course.exam.title}</h1><p>Usa el banco demostrativo disponible. El reloj continúa si cerrás o salís; las respuestas y marcas quedan guardadas. Las explicaciones aparecen únicamente después de entregar.</p><div className="simulation-facts"><span><b>{Math.min(course.exam.questionCount,course.questions.length)}</b> preguntas</span><span><b>{course.exam.durationMinutes} min</b> de duración</span><span><b>{course.exam.passingPercent}%</b> umbral demo</span></div>{progress.activeExam?<button className="primary" onClick={()=>navigate('exam')}>Reanudar simulacro</button>:<button className="primary" onClick={startExam}>Iniciar simulacro</button>}</div></section>}
 
       {view === 'quiz' && session && current && <section className="quiz-wrap"><button className="back-link" onClick={() => navigate('home')}>← Guardar y salir</button><div className="quiz-meta"><span>{course.shortTitle} · {session.source === 'simulation' ? 'Simulacro' : session.mode === 'random' ? 'Aleatoria' : levelNames[session.difficulty!]}</span><span>{session.position + 1} / {session.questionIds.length}</span></div><div className="progress-bar"><span style={{ width: `${((session.position + Number(selected !== undefined)) / session.questionIds.length) * 100}%` }}/></div><article className="question-card"><div className="tags">{(course.conceptIcons?.[current.topic] ?? course.conceptIcons?.[current.domain]) && <span className="concept-tag"><ConceptIcon id={(course.conceptIcons?.[current.topic] ?? course.conceptIcons?.[current.domain])!} size={16}/>{current.topic}</span>}<span>Demostrativa</span><span>{current.domain}</span><span>{levelNames[current.difficulty]}</span></div><p className="question-number">Pregunta {session.position + 1}</p><h2>{current.prompt}</h2><div className="options">{current.options.map((option, index) => { const choice = index as Choice; const state = selected === undefined ? '' : choice === current.correct ? 'correct' : choice === selected ? 'wrong' : 'muted'; return <button className={state} key={option} onClick={() => answer(choice)} disabled={selected !== undefined}><b>{String.fromCharCode(65 + index)}</b><span>{option}</span></button>; })}</div>{selected !== undefined && <div className={`feedback ${selected === current.correct ? 'success' : 'error'}`}><div><strong>{selected === current.correct ? 'Respuesta correcta' : 'Revisá este concepto'}</strong><p>{current.explanation}</p></div><button className="primary" onClick={advance}>{session.position + 1 === session.questionIds.length ? 'Ver progreso' : 'Siguiente →'}</button></div>}</article></section>}
+      {view === 'quiz' && session?.source === 'review' && current && selected !== undefined && <div className="recall-rating" aria-label="Dificultad percibida"><span>¿Cómo se sintió recordarla?</span>{([['again','Otra vez'],['hard','Difícil'],['good','Bien'],['easy','Fácil']] as [RecallGrade,string][]).map(([grade,label])=><button key={grade} onClick={()=>gradeRecall(grade)}>{label}</button>)}</div>}
 
       {view === 'quiz' && (!session || !current) && <div className="resource-empty"><h1>No hay una sesión activa</h1><p>Configurá una práctica para comenzar.</p><button className="primary" onClick={() => navigate('practice')}>Configurar sesión</button></div>}
 

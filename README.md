@@ -23,9 +23,14 @@ Plataforma de estudio web, responsive y reutilizable para certificaciones. Inclu
 - Preferencias locales de texto ampliado y reducción de movimiento.
 - Progreso guardado en `localStorage`, aislado por certificación y con migración del historial CAPM v1.
 - Cobertura real, historial deduplicado de intentos, XP, rangos, logros y desafíos locales independientes por certificación.
+- Campañas declarativas con mapa, desbloqueos verificables y desafíos para las tres certificaciones.
+- Entrenamiento con repetición espaciada persistente y fechas independientes por curso.
+- Simulacros demostrativos con temporizador continuo, navegación, marcado, entrega y revisión final.
+- Biblioteca enriquecida con comparador, preguntas relacionadas y ejercicios de fórmulas cuando corresponden.
+- Funcionamiento offline mediante Service Worker versionado y actualización controlada.
 - Estructura `src/certifications/<id>` para incorporar nuevos paquetes sin modificar el motor de preguntas.
 
-**Todavía no incluye:** campaña jugable, simulacros oficiales completos, preguntas validadas, repetición espaciada, sincronización entre dispositivos ni cuentas de usuario.
+**Todavía no incluye:** simulacros oficiales completos, bancos masivos validados, sincronización entre dispositivos ni cuentas de usuario.
 
 ## Desarrollo local
 
@@ -56,6 +61,6 @@ Los nombres de certificaciones se usan únicamente para identificar el área de 
 
 ## Progreso y gamificación
 
-El esquema actual (`study-hub:progress:v3`) registra cada respuesta nueva con certificación, sesión, pregunta, elección, corrección, fecha y modalidad. La clave `sesión:pregunta` impide duplicar intentos tras recargas o reanudaciones. La migración desde v1/v2 conserva totales, errores, recorridos y sesiones activas; cuando el almacenamiento anterior no identifica preguntas o fechas, la interfaz lo marca como historial incompleto y no inventa cobertura ni XP.
+El esquema actual (`study-hub:progress:v4`) amplía v3 con campaña, repaso y simulacros, manteniendo cada respuesta con certificación, sesión, pregunta, elección, corrección, fecha y modalidad. La clave `sesión:pregunta` impide duplicar intentos tras recargas o reanudaciones. Las migraciones conservan totales, errores, recorridos y sesiones activas; cuando el almacenamiento anterior no identifica preguntas o fechas, la interfaz lo marca como historial incompleto y no inventa cobertura ni XP.
 
 La XP es independiente por certificación: +10 por el primer acierto de una pregunta nueva, +5 la primera vez que se corrige una pregunta antes fallada, +10 al completar una sesión que produjo al menos uno de esos aprendizajes verificables y +20 por logro desbloqueado. Preguntas conocidas, recargas y reutilización de una sesión no vuelven a otorgar la misma recompensa. La XP, los rangos y los logros ya obtenidos se conservan si crece el banco; la cobertura sí se recalcula sobre el total disponible. Estos rangos pertenecen a Study Hub y no indican preparación oficial para rendir una certificación.
