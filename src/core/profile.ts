@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { StudyProgress } from './types';
 
-export type AvatarId = 'anonymous' | 'navigator' | 'scholar' | 'guardian' | 'builder' | 'explorer';
+export type AvatarId = 'anonymous' | 'navigator' | 'scholar' | 'guardian' | 'builder' | 'explorer' | 'terminal' | 'strategist' | 'researcher' | 'pathfinder';
 export type AvatarFrame = 'plain' | 'bronze' | 'silver' | 'gold';
 
 export interface LocalProfile {

@@ -4,12 +4,12 @@ Plataforma de estudio web, responsive y reutilizable para certificaciones. Inclu
 
 ## Funcionalidades de esta versión
 
-- Experiencia mobile-first con navegación inferior, paneles de acción, swipe opcional y alternativas accesibles.
+- Experiencia mobile-first con navegación inferior, menú compacto de perfil y certificación, swipe animado y alternativas accesibles.
 - Interfaz fullscreen basada en `100dvh`, con áreas seguras y scroll interno solamente cuando el contenido lo requiere.
-- Progressive Web App instalable en Android e iOS, con manifiesto e iconos propios; no utiliza Service Worker ni ofrece uso offline.
-- Identidad visual configurable por curso con paletas, motivos e iconos SVG originales; no se utilizan logos oficiales.
-- Temas semánticos claros/oscuros, densidad configurable y estilos de inicio Minimal, Adventure y Dashboard.
-- Perfil exclusivamente local con alias opcional, avatares originales, XP global derivada y logros verificables.
+- Progressive Web App instalable en Android e iOS, con manifiesto, iconos propios y funcionamiento offline mediante Service Worker versionado.
+- Temas visuales globales desacoplados del curso, incluidas variantes Terminal y neón sobre negro sólido; no se utilizan logos oficiales.
+- Temas semánticos claros/oscuros cuando corresponden, densidad configurable y estilos de inicio Minimal, Adventure y Dashboard.
+- Perfil exclusivamente local con alias opcional, avatares originales ampliados, XP global derivada y logros verificables.
 - Catálogo tipado de iconos conceptuales asignable desde cada certificación.
 - Selector de cursos alimentado por un registro modular.
 - Centro de estudio con accesos funcionales a práctica, simulacros, biblioteca, consejos y progreso.
@@ -55,7 +55,7 @@ Este proyecto usa `base: '/study-hub/'` en Vite y un workflow de GitHub Actions 
 
 ## Incorporar preguntas
 
-Creá un paquete en `src/certifications/<id>/index.ts` que implemente `CertificationPack` y registralo en `src/certifications/index.ts`. El bloque `theme` controla paleta, icono y motivo visual; `resources` incorpora materiales sin modificar la aplicación central. Cada pregunta requiere un ID permanente, dominio, tema, dificultad, enunciado, cuatro opciones, índice de respuesta correcta (0–3) y explicación. Los IDs no deben cambiar una vez publicados porque las sesiones y estadísticas los utilizan para identificar respuestas.
+Creá un paquete en `src/certifications/<id>/index.ts` que implemente `CertificationPack` y registralo en `src/certifications/index.ts`. El bloque `theme` conserva icono y motivo semántico del curso, mientras la paleta visible se selecciona globalmente; `resources` incorpora materiales sin modificar la aplicación central. Cada pregunta requiere un ID permanente, dominio, tema, dificultad, enunciado, cuatro opciones, índice de respuesta correcta (0–3) y explicación. Los IDs no deben cambiar una vez publicados porque las sesiones y estadísticas los utilizan para identificar respuestas.
 
 Los nombres de certificaciones se usan únicamente para identificar el área de estudio. Study Hub es independiente, no utiliza logos oficiales y no implica afiliación o aprobación de las entidades certificadoras.
 

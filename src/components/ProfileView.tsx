@@ -3,7 +3,7 @@ import { globalProfileStats, type AvatarFrame, type AvatarId, type LocalProfile 
 import type { CertificationPack, StudyProgress } from '../core/types';
 import { Avatar } from './Avatar';
 
-const avatars: {id:AvatarId;name:string}[] = [{id:'anonymous',name:'Anónimo'},{id:'navigator',name:'Navegante'},{id:'scholar',name:'Estudiante'},{id:'guardian',name:'Guardián'},{id:'builder',name:'Constructor'},{id:'explorer',name:'Explorador'}];
+const avatars: {id:AvatarId;name:string}[] = [{id:'anonymous',name:'Anónimo'},{id:'navigator',name:'Navegante'},{id:'scholar',name:'Estudiante'},{id:'guardian',name:'Guardián'},{id:'builder',name:'Constructor'},{id:'explorer',name:'Explorador'},{id:'terminal',name:'Terminal'},{id:'strategist',name:'Estratega'},{id:'researcher',name:'Investigador'},{id:'pathfinder',name:'Pionero'}];
 
 export function ProfileView({ profile, progress, courses, onChange, onBack }: { profile: LocalProfile; progress: StudyProgress; courses: readonly CertificationPack[]; onChange:(patch:Partial<LocalProfile>)=>void; onBack:()=>void }) {
   const stats = globalProfileStats(progress);
