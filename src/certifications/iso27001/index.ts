@@ -8,6 +8,7 @@ export const iso27001: CertificationPack = {
   description: 'Contexto, riesgos, controles y mejora continua de un SGSI.',
   accent: '#24c8a5', accentSoft: '#37a9a0',
   theme: { primary: '#25cf9f', secondary: '#167d88', glow: '#19a988', icon: 'shield', motif: 'circuit' },
+  conceptIcons: { SGSI:'isms', Riesgo:'risk', Riesgos:'risk', Controles:'control', Control:'control', Auditoría:'audit', 'No conformidad':'audit', Activo:'asset', Incidente:'incident-security', Evaluación:'audit', Aplicabilidad:'control' },
   questions: [
     { id: 'ISO-DEMO-001', domain: 'SGSI', topic: 'Contexto', difficulty: 'basico', prompt: '¿Cuál es el propósito principal de definir el alcance de un SGSI?', options: ['Delimitar qué partes de la organización cubre el sistema', 'Seleccionar únicamente controles técnicos', 'Eliminar toda incertidumbre de negocio', 'Sustituir la evaluación de riesgos'], correct: 0, explanation: 'El alcance establece límites y aplicabilidad del SGSI considerando contexto, partes interesadas e interfaces.' },
     { id: 'ISO-DEMO-002', domain: 'Riesgos', topic: 'Tratamiento', difficulty: 'basico', prompt: 'Después de evaluar un riesgo de seguridad, ¿qué debería ocurrir?', options: ['Ignorarlo si no hubo incidentes', 'Elegir y documentar una opción de tratamiento coherente con los criterios', 'Aplicar todos los controles disponibles', 'Transferirlo siempre a un proveedor'], correct: 1, explanation: 'El tratamiento debe responder a los criterios de riesgo y quedar documentado, incluyendo responsables y controles seleccionados.' },

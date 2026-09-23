@@ -46,7 +46,19 @@ export interface CertificationPack {
   questions: Question[];
   glossary: GlossaryEntry[];
   resources: StudyResources;
+  conceptIcons?: Record<string, ConceptIconId>;
 }
+export type ConceptIconId =
+  | 'stakeholder' | 'project-manager' | 'pmo' | 'product-owner' | 'sponsor' | 'team'
+  | 'risk' | 'planning' | 'schedule' | 'scope' | 'cost' | 'quality'
+  | 'predictive' | 'agile' | 'hybrid'
+  | 'isms' | 'control' | 'audit' | 'incident-security' | 'asset'
+  | 'service' | 'value-stream' | 'incident-service' | 'change' | 'continual-improvement';
+
+// Contrato preparado para v0.9. No se crean capítulos ni progreso de campaña en v0.8.
+export interface CampaignNodeDefinition { id: string; title: string; difficulty?: Difficulty; resourceIds?: string[]; completionRule?: string; }
+export interface CampaignChapterDefinition { id: string; title: string; nodes: CampaignNodeDefinition[]; }
+export interface CampaignDefinition { id: string; certificationId: string; chapters: CampaignChapterDefinition[]; }
 export type QuizMode = 'random' | 'linear';
 export type QuestionPool = 'all' | 'new' | 'mistakes';
 export interface PracticeFilters {
