@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 20109)
-Total output lines: 334
-
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap');
 
 :root { color-scheme: dark; font-family: Manrope, system-ui, sans-serif; color: #f4f6ff; background: #070a12; font-synthesis: none; }
@@ -160,7 +157,15 @@ footer { width: min(100% - 32px, 1440px); padding: 8px 0; min-height: 30px; }
 .about-panel { min-height: 0; border: 1px solid #293245; border-radius: 14px; background: #0f151f; overflow-y: auto; }
 .about-panel summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; padding: 10px 15px; font-weight: 800; }
 .about-panel summary::after { content: '+'; margin-left: auto; color: var(--accent-soft); font-size: 20px; }
-.about-panel[open] summary::after { content: '−'; }…109 tokens truncated…ns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.about-panel[open] summary::after { content: '−'; }
+.about-panel > div { border-top: 1px solid #293245; padding: 14px 16px; }
+.about-panel h2 { font-size: 17px; margin-bottom: 6px; }
+.about-panel p { color: #929cae; font-size: 12px; line-height: 1.55; }
+.standalone .topbar { padding-top: max(env(safe-area-inset-top), 4px); }
+
+@media (max-width: 780px) {
+  .compact-page-heading { margin-bottom: 8px; }.compact-page-heading h1 { font-size: 27px; }
+  .library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 7px; }
   .library-grid button { min-height: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 7px; padding: 8px 5px; text-align: center; }
   .library-grid button > span { width: clamp(34px, 6vh, 42px); margin: 0; }.library-grid strong { font-size: clamp(11px, 3.2vw, 14px); }.library-grid button > svg { display: none; }
   .practice-view { grid-template-rows: auto auto minmax(0, 1fr) auto; }.compact-resume { min-height: 50px; margin-bottom: 7px; padding: 7px 10px; }.compact-resume p { font-size: 10px; }.compact-resume .secondary { min-height: 38px; }
