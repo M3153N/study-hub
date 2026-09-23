@@ -1,6 +1,4 @@
-import type { CourseTheme } from './types';
-
-export type ThemeId = 'course' | 'academy' | 'cyber' | 'minimal' | 'amber' | 'adventure' | 'arcane' | 'neon';
+export type ThemeId = 'academy' | 'cyber' | 'minimal' | 'amber' | 'adventure' | 'arcane' | 'neon' | 'terminal' | 'neon-purple' | 'neon-red';
 export type Appearance = 'light' | 'dark' | 'auto';
 export type Density = 'compact' | 'normal' | 'comfortable';
 
@@ -12,13 +10,14 @@ export interface SemanticTokens {
 }
 
 export interface ThemeDefinition {
-  id: Exclude<ThemeId, 'course'>;
+  id: ThemeId;
   name: string;
   description: string;
   accent: string;
   accentSoft: string;
   light: SemanticTokens;
   dark: SemanticTokens;
+  darkOnly?: boolean;
 }
 
 const darkBase = (surface: string, raised: string): Omit<SemanticTokens, 'interactive' | 'interactiveText'> => ({
@@ -39,16 +38,14 @@ export const themes: ThemeDefinition[] = [
   { id: 'amber', name: 'Amber', description: 'Cálido, enérgico y legible.', accent: '#f0a629', accentSoft: '#f2c45e', dark: { ...darkBase('#1b1409','#271d0d'), interactive:'#e59a1f', interactiveText:'#1b1103' }, light: { ...lightBase('#fff8e8','#f9edcf'), interactive:'#a86400', interactiveText:'#ffffff' } },
   { id: 'adventure', name: 'Adventure', description: 'Bosque, cobre y espíritu explorador.', accent: '#d58a3a', accentSoft: '#55b98b', dark: { ...darkBase('#17150f','#242117'), interactive:'#d58a3a', interactiveText:'#1b1005' }, light: { ...lightBase('#fbf5e9','#f1e8d5'), interactive:'#8a4e14', interactiveText:'#ffffff' } },
   { id: 'arcane', name: 'Arcane', description: 'Tinta violeta y conocimiento místico.', accent: '#a875ff', accentSoft: '#4bc8c1', dark: { ...darkBase('#151020','#21182e'), interactive:'#9d6aef', interactiveText:'#ffffff' }, light: { ...lightBase('#f8f1ff','#eee3fa'), interactive:'#7040b2', interactiveText:'#ffffff' } },
-  { id: 'neon', name: 'Neon', description: 'Cian eléctrico y contraste nocturno.', accent: '#19e6da', accentSoft: '#d8ff46', dark: { ...darkBase('#07191d','#0d272d'), interactive:'#16c9c0', interactiveText:'#031313' }, light: { ...lightBase('#edfbfc','#d8f3f4'), interactive:'#087b82', interactiveText:'#ffffff' } },
+  { id: 'neon', name: 'Neon Cyan', description: 'Negro sólido y cian eléctrico.', accent: '#20f6e8', accentSoft: '#82fff6', darkOnly:true, dark: { ...darkBase('#050909','#071111'), background:'#000000', border:'#163737', interactive:'#20f6e8', interactiveText:'#001110' }, light: { ...lightBase('#edfbfc','#d8f3f4'), interactive:'#087b82', interactiveText:'#ffffff' } },
+  { id: 'terminal', name: 'Terminal', description: 'Negro puro y verde de terminal.', accent: '#39ff88', accentSoft: '#9affbd', darkOnly:true, dark: { ...darkBase('#030704','#071009'), background:'#000000', text:'#d8ffe4', textMuted:'#79a987', border:'#163d22', interactive:'#39ff88', interactiveText:'#001907', success:'#39ff88', successSurface:'#05200d' }, light: { ...lightBase('#f2fff5','#e2f8e8'), interactive:'#087a35', interactiveText:'#ffffff' } },
+  { id: 'neon-purple', name: 'Neon Purple', description: 'Negro sólido y violeta arcade.', accent: '#bd66ff', accentSoft: '#ecb8ff', darkOnly:true, dark: { ...darkBase('#08050c','#100719'), background:'#000000', border:'#3a1e4e', interactive:'#bd66ff', interactiveText:'#13001f' }, light: { ...lightBase('#faf2ff','#f0e0fa'), interactive:'#7532a8', interactiveText:'#ffffff' } },
+  { id: 'neon-red', name: 'Neon Red', description: 'Negro sólido y rojo de desafío.', accent: '#ff405d', accentSoft: '#ff9aaa', darkOnly:true, dark: { ...darkBase('#0b0405','#160709'), background:'#000000', border:'#4a1d25', interactive:'#ff405d', interactiveText:'#210006', danger:'#ff6b80', dangerSurface:'#29070d' }, light: { ...lightBase('#fff3f5','#fae3e7'), interactive:'#b7233b', interactiveText:'#ffffff' } },
 ];
 
-export function resolveTheme(id: ThemeId, mode: 'light' | 'dark', course: CourseTheme) {
-  if (id !== 'course') {
-    const theme = themes.find(item => item.id === id) ?? themes[0];
-    return { ...theme[mode], accent: theme.accent, accentSoft: theme.accentSoft, glow: theme.accent };
-  }
-  const semantic = mode === 'dark'
-    ? { ...darkBase('#0e1420','#151c29'), interactive: course.primary, interactiveText: '#ffffff' }
-    : { ...lightBase('#f4f6fb','#e7ebf4'), interactive: course.primary, interactiveText: '#ffffff' };
-  return { ...semantic, accent: course.primary, accentSoft: course.secondary, glow: course.glow };
+export function resolveTheme(id: ThemeId, mode: 'light' | 'dark') {
+  const theme = themes.find(item => item.id === id) ?? themes[0];
+  const resolvedMode = theme.darkOnly ? 'dark' : mode;
+  return { ...theme[resolvedMode], accent: theme.accent, accentSoft: theme.accentSoft, glow: theme.accent, darkOnly:Boolean(theme.darkOnly), mode:resolvedMode };
 }

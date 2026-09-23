@@ -7,8 +7,10 @@ import { ProfileView } from './components/ProfileView';
 import { ConceptIcon } from './components/ConceptIcons';
 import { CampaignView } from './components/CampaignView';
 import { ExamView } from './components/ExamView';
+import { Avatar } from './components/Avatar';
+import { ProfileMenu } from './components/ProfileMenu';
 import { useCourseProgress } from './core/progress';
-import { useLocalProfile } from './core/profile';
+import { globalProfileStats, useLocalProfile } from './core/profile';
 import { reviewBuckets, scheduleReview, type RecallGrade } from './core/spacedRepetition';
 import { achievementCatalog, breakdown, rankFor, refreshAchievements, uniqueSeen } from './core/gamification';
 import { resolveTheme, themes, type Appearance, type Density, type ThemeId } from './core/themes';
@@ -20,12 +22,13 @@ type HomeCategory = 'training' | 'library' | 'tracking';
 type ProgressTab = 'summary' | 'levels' | 'mistakes';
 type ProgressSection = 'metrics' | 'ranks' | 'achievements';
 type SettingsTab = 'appearance' | 'home' | 'accessibility' | 'about';
-interface Preferences { version: 3; reducedMotion: boolean; largeText: boolean; themeId: ThemeId; appearance: Appearance; density: Density; homeOrder: string[]; hiddenHome: string[]; focusMode: boolean; homeStyle: HomeStyle; homeMetrics: HomeMetric[]; }
+interface Preferences { version: 4; reducedMotion: boolean; largeText: boolean; themeId: ThemeId; appearance: Appearance; density: Density; homeOrder: string[]; hiddenHome: string[]; focusMode: boolean; homeStyle: HomeStyle; homeMetrics: HomeMetric[]; }
+type LegacyPreferences = Partial<Omit<Preferences,'themeId'|'version'>> & { themeId?: string };
 interface InstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>; }
 
 const courseKey = 'study-hub:selected-course:v1';
-const preferencesKey = 'study-hub:preferences:v3';
-const previousPreferencesKey = 'study-hub:preferences:v2';
+const preferencesKey = 'study-hub:preferences:v4';
+const previousPreferencesKey = 'study-hub:preferences:v3';
 const legacyPreferencesKey = 'study-hub:preferences:v1';
 const defaultHomeOrder = ['campaign','training','practice','simulations','glossary','maps','comparisons','reading','flashcards','formulas','tips','progress'];
 const sizeOptions: SessionSize[] = [5, 10, 20, 'all'];
@@ -36,14 +39,16 @@ function initialCourse() {
 }
 
 function initialPreferences(): Preferences {
-  const defaults: Preferences = { version: 3, reducedMotion: false, largeText: false, themeId: 'course', appearance: 'auto', density: 'normal', homeOrder: defaultHomeOrder, hiddenHome: [], focusMode: false, homeStyle: 'minimal', homeMetrics: ['xp','rank','accuracy','coverage'] };
+  const defaults: Preferences = { version: 4, reducedMotion: false, largeText: false, themeId: 'academy', appearance: 'auto', density: 'normal', homeOrder: defaultHomeOrder, hiddenHome: [], focusMode: false, homeStyle: 'minimal', homeMetrics: ['xp','rank','accuracy','coverage'] };
   try {
     const saved = localStorage.getItem(preferencesKey);
-    if (saved) return { ...defaults, ...JSON.parse(saved) as Partial<Preferences>, version: 3 };
+    if (saved) return { ...defaults, ...JSON.parse(saved) as Partial<Preferences>, version: 4 };
     const previous = localStorage.getItem(previousPreferencesKey);
-    if (previous) return { ...defaults, ...JSON.parse(previous) as Partial<Preferences>, version: 3 };
+    if (previous) { const migrated=JSON.parse(previous) as LegacyPreferences; return { ...defaults, ...migrated, themeId:migrated.themeId==='course'?'academy':themes.some(theme=>theme.id===migrated.themeId)?migrated.themeId as ThemeId:'academy', version: 4 }; }
     const legacy = localStorage.getItem(legacyPreferencesKey);
-    return legacy ? { ...defaults, ...JSON.parse(legacy) as Partial<Preferences> } : defaults;
+    if (!legacy) return defaults;
+    const migrated=JSON.parse(legacy) as LegacyPreferences;
+    return { ...defaults, ...migrated, themeId:migrated.themeId==='course'?'academy':themes.some(theme=>theme.id===migrated.themeId)?migrated.themeId as ThemeId:'academy', version:4 };
   } catch { return defaults; }
 }
 
@@ -64,6 +69,7 @@ function App() {
   const [progressTab, setProgressTab] = useState<ProgressTab>('summary');
   const [progressSection, setProgressSection] = useState<ProgressSection>('metrics');
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [filters, setFilters] = useState<PracticeFilters>({ pool: 'all', domain: 'all', topic: 'all', difficulty: 'all' });
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(() => window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
@@ -73,6 +79,7 @@ function App() {
   const course = getCertification(courseId);
   const { progress, studyProgress, setProgress, reset } = useCourseProgress(courseId);
   const { profile, updateProfile } = useLocalProfile();
+  const globalStats = useMemo(() => globalProfileStats(studyProgress), [studyProgress]);
   const session = progress.activeSession;
   const current = session ? course.questions.find(question => question.id === session.questionIds[session.position]) : undefined;
   const selected = current && session ? session.answers[current.id] : undefined;
@@ -106,6 +113,8 @@ function App() {
 
   useEffect(()=>{const sync=()=>setOnline(navigator.onLine);const update=(event:Event)=>setWaitingWorker((event as CustomEvent<ServiceWorkerRegistration>).detail.waiting);window.addEventListener('online',sync);window.addEventListener('offline',sync);window.addEventListener('study-hub-update',update);return()=>{window.removeEventListener('online',sync);window.removeEventListener('offline',sync);window.removeEventListener('study-hub-update',update)}},[]);
 
+  useEffect(()=>{localStorage.setItem(preferencesKey,JSON.stringify(preferences))},[preferences]);
+
   useEffect(() => {
     const query = window.matchMedia('(prefers-color-scheme: dark)');
     const sync = () => setSystemDark(query.matches);
@@ -114,12 +123,14 @@ function App() {
   }, []);
 
   const colorMode = preferences.appearance === 'auto' ? (systemDark ? 'dark' : 'light') : preferences.appearance;
-  const theme = resolveTheme(preferences.themeId, colorMode, course.theme);
+  const activeThemeDefinition = themes.find(item=>item.id===preferences.themeId) ?? themes[0];
+  const theme = resolveTheme(preferences.themeId, colorMode);
+  const effectiveColorMode = theme.mode;
 
   useEffect(() => {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.background);
-    document.documentElement.style.colorScheme = colorMode;
-  }, [theme.background, colorMode]);
+    document.documentElement.style.colorScheme = effectiveColorMode;
+  }, [theme.background, effectiveColorMode]);
 
   const style = {
     '--accent': theme.accent, '--accent-soft': theme.accentSoft, '--course-glow': theme.glow,
@@ -136,6 +147,7 @@ function App() {
     setCourseId(id);
     setView('gamehome');
     setFilters({ pool: 'all', domain: 'all', topic: 'all', difficulty: 'all' });
+    setProfileMenuOpen(false);
   }
 
   function navigate(next: View) {
@@ -149,8 +161,7 @@ function App() {
   }
 
   function updatePreferences(patch: Partial<Preferences>) {
-    const next = { ...preferences, ...patch, version: 3 as const };
-    localStorage.setItem(preferencesKey, JSON.stringify(next));
+    const next = { ...preferences, ...patch, version: 4 as const };
     setPreferences(next);
   }
 
@@ -339,13 +350,14 @@ function App() {
 
   const focusActive = view === 'quiz' && preferences.focusMode;
 
-  return <div data-theme={preferences.themeId} data-color-mode={colorMode} data-density={preferences.density} className={`app-shell motif-${course.theme.motif} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.largeText ? 'large-text' : ''} ${isStandalone ? 'standalone' : ''} ${focusActive ? 'focus-mode' : ''}`} style={style}>
+  return <div data-theme={preferences.themeId} data-color-mode={effectiveColorMode} data-density={preferences.density} className={`app-shell motif-${course.theme.motif} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.largeText ? 'large-text' : ''} ${isStandalone ? 'standalone' : ''} ${focusActive ? 'focus-mode' : ''}`} style={style}>
     <header className="topbar">
-      <button className="brand" onClick={() => navigate('home')} aria-label="Ir al centro de estudio"><span><Icon name={course.theme.icon} size={24}/></span><div>Study Hub<small>Centro de estudio</small></div></button>
-      <label className="course-picker"><span>Certificación</span><select aria-label="Cambiar certificación" value={courseId} onChange={event => changeCourse(event.target.value)}>{certifications.map(item => <option key={item.id} value={item.id}>{item.shortTitle}</option>)}</select></label>
+      <button className="brand" onClick={() => navigate('home')} aria-label="Ir al centro de estudio"><span><Icon name="home" size={22}/></span><div>Study Hub<small>{course.shortTitle}</small></div></button>
       <nav className="desktop-nav" aria-label="Navegación principal"><button className={navSection === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Inicio</button><button className={navSection === 'practice' ? 'active' : ''} onClick={() => navigate('practice')}>Practicar</button><button className={navSection === 'library' ? 'active' : ''} onClick={() => navigate('library')}>Biblioteca</button><button className={navSection === 'progress' ? 'active' : ''} onClick={() => navigate('progress')}>Progreso</button></nav>
-      <button className={`settings-button ${view === 'personalize' ? 'active' : ''}`} onClick={() => navigate('settings')} aria-label="Abrir configuración"><Icon name="settings" size={21}/></button>
+      <button className="header-avatar" onClick={()=>setProfileMenuOpen(true)} aria-label="Abrir perfil y certificación" aria-expanded={profileMenuOpen}><Avatar id={profile.avatar} frame={profile.frame} size={42}/></button>
     </header>
+
+    <ProfileMenu open={profileMenuOpen} profile={profile} globalXp={globalStats.xp} globalRank={globalStats.current.name} courseId={courseId} courses={certifications} onClose={()=>setProfileMenuOpen(false)} onCourse={changeCourse} onProfile={()=>{setProfileMenuOpen(false);navigate('profile')}} onAppearance={()=>{setProfileMenuOpen(false);setSettingsTab('appearance');navigate('settings')}} onSettings={()=>{setProfileMenuOpen(false);setSettingsTab('accessibility');navigate('settings')}}/>
 
     {(!online || waitingWorker) && <aside className="connection-status" role="status"><span>{online?'Nueva versión disponible':'Sin conexión · tus datos siguen guardándose localmente'}</span>{waitingWorker&&<button onClick={()=>waitingWorker.postMessage({type:'SKIP_WAITING'})}>Actualizar cuando estés listo</button>}</aside>}
 
@@ -371,15 +383,14 @@ function App() {
         </div>
         <div className="settings-panel">
           {settingsTab === 'appearance' && <div className="appearance-settings">
-            <div className="setting-heading"><div><strong>Tema visual</strong><small>Se aplica a todas las certificaciones. “Curso” usa la identidad del curso activo.</small></div></div>
+            <div className="setting-heading"><div><strong>Tema visual global</strong><small>Tu apariencia no cambia al cambiar de certificación.</small></div></div>
             <div className="theme-grid">
-              <button className={preferences.themeId === 'course' ? 'active' : ''} onClick={() => updatePreferences({ themeId: 'course' })}><span className="theme-preview" style={{ '--preview-a': course.theme.primary, '--preview-b': course.theme.secondary } as CSSProperties}/><strong>Curso</strong><small>Identidad de {course.shortTitle}</small></button>
-              {themes.map(item => <button key={item.id} className={preferences.themeId === item.id ? 'active' : ''} onClick={() => updatePreferences({ themeId: item.id })}><span className="theme-preview" style={{ '--preview-a': item.accent, '--preview-b': item.accentSoft } as CSSProperties}/><strong>{item.name}</strong><small>{item.description}</small></button>)}
+              {themes.map(item => <button key={item.id} className={preferences.themeId === item.id ? 'active' : ''} onClick={() => updatePreferences({ themeId: item.id })}><span className="theme-preview" style={{ '--preview-a': item.accent, '--preview-b': item.accentSoft, '--preview-bg':item.dark.background } as CSSProperties}/><strong>{item.name}</strong><small>{item.description}{item.darkOnly?' · Sólo oscuro':''}</small></button>)}
             </div>
-            <fieldset className="choice-setting"><legend>Apariencia</legend><div>{(['light','dark','auto'] as Appearance[]).map(value => <button key={value} className={preferences.appearance === value ? 'active' : ''} aria-pressed={preferences.appearance === value} onClick={() => updatePreferences({ appearance: value })}>{value === 'light' ? 'Claro' : value === 'dark' ? 'Oscuro' : 'Automático'}</button>)}</div></fieldset>
+            <fieldset className="choice-setting"><legend>Apariencia</legend><div>{(['light','dark','auto'] as Appearance[]).map(value => <button key={value} disabled={Boolean(activeThemeDefinition.darkOnly)&&value!=='dark'} className={(activeThemeDefinition.darkOnly?value==='dark':preferences.appearance===value) ? 'active' : ''} aria-pressed={activeThemeDefinition.darkOnly?value==='dark':preferences.appearance===value} onClick={() => updatePreferences({ appearance: value })}>{value === 'light' ? 'Claro' : value === 'dark' ? 'Oscuro' : 'Automático'}</button>)}</div>{activeThemeDefinition.darkOnly&&<small className="dark-only-note">{activeThemeDefinition.name} está diseñado exclusivamente para fondo oscuro.</small>}</fieldset>
             <fieldset className="choice-setting"><legend>Densidad</legend><div>{(['compact','normal','comfortable'] as Density[]).map(value => <button key={value} className={preferences.density === value ? 'active' : ''} aria-pressed={preferences.density === value} onClick={() => updatePreferences({ density: value })}>{value === 'compact' ? 'Compacta' : value === 'normal' ? 'Normal' : 'Cómoda'}</button>)}</div></fieldset>
             <fieldset className="choice-setting"><legend>Estilo del inicio</legend><div>{(['minimal','adventure','dashboard'] as HomeStyle[]).map(value => <button key={value} className={preferences.homeStyle === value ? 'active' : ''} aria-pressed={preferences.homeStyle === value} onClick={() => updatePreferences({ homeStyle: value })}>{value === 'minimal' ? 'Minimal' : value === 'adventure' ? 'Adventure' : 'Dashboard'}</button>)}</div></fieldset>
-            <button className="secondary reset-preferences" onClick={() => updatePreferences({ themeId: 'course', appearance: 'auto', density: 'normal' })}>Restaurar apariencia</button>
+            <button className="secondary reset-preferences" onClick={() => updatePreferences({ themeId: 'academy', appearance: 'auto', density: 'normal' })}>Restaurar apariencia</button>
           </div>}
 
           {settingsTab === 'home' && <div className="home-settings"><div className="setting-heading"><div><strong>Herramientas de Inicio</strong><small>Elegí cuáles aparecen y ordenalas. Todas siguen disponibles desde Practicar, Biblioteca y Progreso.</small></div><button className="secondary" onClick={() => updatePreferences({ homeOrder: defaultHomeOrder, hiddenHome: [] })}>Restaurar</button></div><div className="home-order-list">{orderedCards.map((card, index) => <div key={card.id}><label><input type="checkbox" checked={!preferences.hiddenHome.includes(card.id)} onChange={() => toggleHomeCard(card.id)}/><Icon name={card.icon} size={20}/><span><strong>{card.title}</strong><small>{card.category === 'training' ? 'Entrenamiento' : card.category === 'library' ? 'Biblioteca' : 'Seguimiento'}</small></span></label><div><button onClick={() => moveHomeCard(card.id, -1)} disabled={index === 0} aria-label={`Subir ${card.title}`}>↑</button><button onClick={() => moveHomeCard(card.id, 1)} disabled={index === orderedCards.length - 1} aria-label={`Bajar ${card.title}`}>↓</button></div></div>)}</div></div>}
