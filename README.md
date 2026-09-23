@@ -4,10 +4,13 @@ Plataforma de estudio web, responsive y reutilizable para certificaciones. Inclu
 
 ## Funcionalidades de esta versión
 
-- Tema oscuro mobile-first, navegación inferior y acentos por certificación.
+- Experiencia mobile-first con navegación inferior, paneles de acción, swipe opcional y alternativas accesibles.
 - Interfaz fullscreen basada en `100dvh`, con áreas seguras y scroll interno solamente cuando el contenido lo requiere.
 - Progressive Web App instalable en Android e iOS, con manifiesto e iconos propios; no utiliza Service Worker ni ofrece uso offline.
 - Identidad visual configurable por curso con paletas, motivos e iconos SVG originales; no se utilizan logos oficiales.
+- Temas semánticos claros/oscuros, densidad configurable y estilos de inicio Minimal, Adventure y Dashboard.
+- Perfil exclusivamente local con alias opcional, avatares originales, XP global derivada y logros verificables.
+- Catálogo tipado de iconos conceptuales asignable desde cada certificación.
 - Selector de cursos alimentado por un registro modular.
 - Centro de estudio con accesos funcionales a práctica, simulacros, biblioteca, consejos y progreso.
 - Sesiones aleatorias o lineales configurables de 5, 10, 20 o todas las preguntas disponibles.
@@ -22,7 +25,7 @@ Plataforma de estudio web, responsive y reutilizable para certificaciones. Inclu
 - Cobertura real, historial deduplicado de intentos, XP, rangos, logros y desafíos locales independientes por certificación.
 - Estructura `src/certifications/<id>` para incorporar nuevos paquetes sin modificar el motor de preguntas.
 
-**Todavía no incluye:** simulacros oficiales completos, preguntas validadas, repetición espaciada, sincronización entre dispositivos ni cuentas de usuario.
+**Todavía no incluye:** campaña jugable, simulacros oficiales completos, preguntas validadas, repetición espaciada, sincronización entre dispositivos ni cuentas de usuario.
 
 ## Desarrollo local
 

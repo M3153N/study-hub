@@ -2,22 +2,27 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { certifications, getCertification } from './certifications';
 import { Icon, type IconName } from './components/Icons';
 import { ResourceView, type ResourceKind } from './components/StudyResources';
+import { GameHome, type HomeMetric, type HomeStyle } from './components/GameHome';
+import { ProfileView } from './components/ProfileView';
+import { ConceptIcon } from './components/ConceptIcons';
 import { useCourseProgress } from './core/progress';
+import { useLocalProfile } from './core/profile';
 import { achievementCatalog, breakdown, rankFor, refreshAchievements, uniqueSeen } from './core/gamification';
 import { resolveTheme, themes, type Appearance, type Density, type ThemeId } from './core/themes';
 import { levelNames, levels, shuffle, type AnswerRecord, type Choice, type Difficulty, type PracticeFilters, type QuizMode, type SessionResult, type SessionState } from './core/types';
 
-type View = 'home' | 'practice' | 'quiz' | 'results' | 'library' | 'resource' | 'simulations' | 'progress' | 'settings' | 'personalize';
+type View = 'home' | 'gamehome' | 'profile' | 'practice' | 'quiz' | 'results' | 'library' | 'resource' | 'simulations' | 'progress' | 'settings' | 'personalize';
 type SessionSize = 5 | 10 | 20 | 'all';
 type HomeCategory = 'training' | 'library' | 'tracking';
 type ProgressTab = 'summary' | 'levels' | 'mistakes';
 type ProgressSection = 'metrics' | 'ranks' | 'achievements';
 type SettingsTab = 'appearance' | 'home' | 'accessibility' | 'about';
-interface Preferences { version: 2; reducedMotion: boolean; largeText: boolean; themeId: ThemeId; appearance: Appearance; density: Density; homeOrder: string[]; hiddenHome: string[]; focusMode: boolean; }
+interface Preferences { version: 3; reducedMotion: boolean; largeText: boolean; themeId: ThemeId; appearance: Appearance; density: Density; homeOrder: string[]; hiddenHome: string[]; focusMode: boolean; homeStyle: HomeStyle; homeMetrics: HomeMetric[]; }
 interface InstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>; }
 
 const courseKey = 'study-hub:selected-course:v1';
-const preferencesKey = 'study-hub:preferences:v2';
+const preferencesKey = 'study-hub:preferences:v3';
+const previousPreferencesKey = 'study-hub:preferences:v2';
 const legacyPreferencesKey = 'study-hub:preferences:v1';
 const defaultHomeOrder = ['practice','simulations','glossary','maps','comparisons','reading','flashcards','formulas','tips','progress'];
 const sizeOptions: SessionSize[] = [5, 10, 20, 'all'];
@@ -28,10 +33,12 @@ function initialCourse() {
 }
 
 function initialPreferences(): Preferences {
-  const defaults: Preferences = { version: 2, reducedMotion: false, largeText: false, themeId: 'course', appearance: 'auto', density: 'normal', homeOrder: defaultHomeOrder, hiddenHome: [], focusMode: false };
+  const defaults: Preferences = { version: 3, reducedMotion: false, largeText: false, themeId: 'course', appearance: 'auto', density: 'normal', homeOrder: defaultHomeOrder, hiddenHome: [], focusMode: false, homeStyle: 'minimal', homeMetrics: ['xp','rank','accuracy','coverage'] };
   try {
     const saved = localStorage.getItem(preferencesKey);
-    if (saved) return { ...defaults, ...JSON.parse(saved) as Partial<Preferences>, version: 2 };
+    if (saved) return { ...defaults, ...JSON.parse(saved) as Partial<Preferences>, version: 3 };
+    const previous = localStorage.getItem(previousPreferencesKey);
+    if (previous) return { ...defaults, ...JSON.parse(previous) as Partial<Preferences>, version: 3 };
     const legacy = localStorage.getItem(legacyPreferencesKey);
     return legacy ? { ...defaults, ...JSON.parse(legacy) as Partial<Preferences> } : defaults;
   } catch { return defaults; }
@@ -43,7 +50,7 @@ function ProgressRing({ value, label = 'avance' }: { value: number; label?: stri
 
 function App() {
   const [courseId, setCourseId] = useState(initialCourse);
-  const [view, setView] = useState<View>('home');
+  const [view, setView] = useState<View>('gamehome');
   const [resource, setResource] = useState<ResourceKind>('glossary');
   const [mode, setMode] = useState<QuizMode>('random');
   const [difficulty, setDifficulty] = useState<Difficulty>('basico');
@@ -59,7 +66,8 @@ function App() {
   const [isStandalone, setIsStandalone] = useState(() => window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
   const course = getCertification(courseId);
-  const { progress, setProgress, reset } = useCourseProgress(courseId);
+  const { progress, studyProgress, setProgress, reset } = useCourseProgress(courseId);
+  const { profile, updateProfile } = useLocalProfile();
   const session = progress.activeSession;
   const current = session ? course.questions.find(question => question.id === session.questionIds[session.position]) : undefined;
   const selected = current && session ? session.answers[current.id] : undefined;
@@ -118,12 +126,12 @@ function App() {
   function changeCourse(id: string) {
     localStorage.setItem(courseKey, id);
     setCourseId(id);
-    setView('home');
+    setView('gamehome');
     setFilters({ pool: 'all', domain: 'all', topic: 'all', difficulty: 'all' });
   }
 
   function navigate(next: View) {
-    setView(next === 'settings' ? 'personalize' : next);
+    setView(next === 'settings' ? 'personalize' : next === 'home' ? 'gamehome' : next);
     window.scrollTo({ top: 0, behavior: preferences.reducedMotion ? 'auto' : 'smooth' });
   }
 
@@ -133,7 +141,7 @@ function App() {
   }
 
   function updatePreferences(patch: Partial<Preferences>) {
-    const next = { ...preferences, ...patch, version: 2 as const };
+    const next = { ...preferences, ...patch, version: 3 as const };
     localStorage.setItem(preferencesKey, JSON.stringify(next));
     setPreferences(next);
   }
@@ -206,7 +214,7 @@ function App() {
   }
 
   const studyCards: { id: string; category: HomeCategory; title: string; description: string; icon: IconName; action: () => void; count?: string }[] = [
-    { id: 'practice', category: 'training', title: 'Práctica', description: 'Sesiones configurables y recorridos por nivel.', icon: 'practice', action: () => navigate('practice'), count: `${course.questions.length} preguntas` },
+    { id: 'practice', category: 'training', title: 'Partida libre', description: 'Sesión configurable por banco, modalidad, dificultad y cantidad.', icon: 'practice', action: () => navigate('practice'), count: `${course.questions.length} preguntas` },
     { id: 'simulations', category: 'training', title: 'Simulacros', description: 'Una vuelta completa al banco demostrativo.', icon: 'exam', action: () => navigate('simulations') },
     { id: 'glossary', category: 'library', title: 'Glosario', description: 'Definiciones esenciales para repasar rápido.', icon: 'book', action: () => openResource('glossary'), count: `${course.glossary.length} conceptos` },
     { id: 'maps', category: 'library', title: 'Mapas conceptuales', description: 'Relaciones explorables entre ideas clave.', icon: 'map', action: () => openResource('maps') },
@@ -244,11 +252,23 @@ function App() {
     updatePreferences({ homeOrder: order });
   }
 
+  function moveHomeCardTo(source: string, target: string) {
+    const order = [...effectiveOrder];
+    const from = order.indexOf(source); const to = order.indexOf(target);
+    if (from < 0 || to < 0 || from === to) return;
+    order.splice(to, 0, order.splice(from, 1)[0]);
+    updatePreferences({ homeOrder: order });
+  }
+
   function toggleHomeCard(id: string) {
     updatePreferences({ hiddenHome: preferences.hiddenHome.includes(id) ? preferences.hiddenHome.filter(item => item !== id) : [...preferences.hiddenHome, id] });
   }
 
-  const navSection = view === 'resource' ? 'library' : view === 'quiz' || view === 'results' ? 'practice' : view;
+  function toggleHomeMetric(metric: HomeMetric) {
+    updatePreferences({ homeMetrics: preferences.homeMetrics.includes(metric) ? preferences.homeMetrics.filter(item => item !== metric) : [...preferences.homeMetrics, metric] });
+  }
+
+  const navSection = view === 'gamehome' || view === 'profile' ? 'home' : view === 'resource' ? 'library' : view === 'quiz' || view === 'results' ? 'practice' : view;
 
   const focusActive = view === 'quiz' && preferences.focusMode;
 
@@ -262,6 +282,10 @@ function App() {
 
     <main className="app-main">
       {focusActive && <button className="focus-toggle" onClick={() => updatePreferences({ focusMode: false })} aria-label="Salir del modo concentración">Salir de concentración</button>}
+
+      {view === 'gamehome' && <GameHome alias={profile.alias} avatar={profile.avatar} frame={profile.frame} style={preferences.homeStyle} courseTitle={course.shortTitle} xp={progress.xp} rank={rank.current.name} nextXp={rank.next?.xp} accuracy={accuracy} coverage={coverage} sessionLabel={session ? `Pregunta ${session.position + 1} de ${session.questionIds.length}` : undefined} onPrimary={() => navigate(session ? 'quiz' : 'practice')} onProfile={() => navigate('profile')} cards={orderedCards} hidden={preferences.hiddenHome} metrics={preferences.homeMetrics} reducedMotion={preferences.reducedMotion} onMove={moveHomeCard} onMoveTo={moveHomeCardTo} onToggle={toggleHomeCard} onToggleMetric={toggleHomeMetric} onRestore={() => updatePreferences({ homeOrder: defaultHomeOrder, hiddenHome: [], homeMetrics: ['xp','rank','accuracy','coverage'] })}/>}
+
+      {view === 'profile' && <ProfileView profile={profile} progress={studyProgress} courses={certifications} onChange={updateProfile} onBack={() => navigate('home')}/>}
 
       {view === 'personalize' && <section className="personalization-view">
         <div className="page-heading compact-page-heading"><p className="eyebrow">Preferencias locales</p><h1>Personalización</h1></div>
@@ -277,6 +301,7 @@ function App() {
             </div>
             <fieldset className="choice-setting"><legend>Apariencia</legend><div>{(['light','dark','auto'] as Appearance[]).map(value => <button key={value} className={preferences.appearance === value ? 'active' : ''} aria-pressed={preferences.appearance === value} onClick={() => updatePreferences({ appearance: value })}>{value === 'light' ? 'Claro' : value === 'dark' ? 'Oscuro' : 'Automático'}</button>)}</div></fieldset>
             <fieldset className="choice-setting"><legend>Densidad</legend><div>{(['compact','normal','comfortable'] as Density[]).map(value => <button key={value} className={preferences.density === value ? 'active' : ''} aria-pressed={preferences.density === value} onClick={() => updatePreferences({ density: value })}>{value === 'compact' ? 'Compacta' : value === 'normal' ? 'Normal' : 'Cómoda'}</button>)}</div></fieldset>
+            <fieldset className="choice-setting"><legend>Estilo del inicio</legend><div>{(['minimal','adventure','dashboard'] as HomeStyle[]).map(value => <button key={value} className={preferences.homeStyle === value ? 'active' : ''} aria-pressed={preferences.homeStyle === value} onClick={() => updatePreferences({ homeStyle: value })}>{value === 'minimal' ? 'Minimal' : value === 'adventure' ? 'Adventure' : 'Dashboard'}</button>)}</div></fieldset>
             <button className="secondary reset-preferences" onClick={() => updatePreferences({ themeId: 'course', appearance: 'auto', density: 'normal' })}>Restaurar apariencia</button>
           </div>}
 
@@ -302,7 +327,7 @@ function App() {
 
       {view === 'simulations' && <section className="simulation-view"><button className="back-link" onClick={() => navigate('home')}>← Volver al inicio</button><div className="simulation-card"><span className="simulation-icon"><Icon name="exam" size={42}/></span><p className="eyebrow">Simulacro demostrativo</p><h1>Recorré todo el banco</h1><p>Una sesión aleatoria con las {course.questions.length} preguntas disponibles de {course.shortTitle}. Podés salir y reanudar en cualquier momento. No representa un examen oficial.</p><div className="simulation-facts"><span><b>{course.questions.length}</b> preguntas</span><span><b>Sin límite</b> de tiempo</span><span><b>Con</b> explicaciones</span></div><button className="primary" onClick={() => startSession('random', difficulty, 'all', 'simulation')}>Iniciar simulacro</button></div></section>}
 
-      {view === 'quiz' && session && current && <section className="quiz-wrap"><button className="back-link" onClick={() => navigate('home')}>← Guardar y salir</button><div className="quiz-meta"><span>{course.shortTitle} · {session.source === 'simulation' ? 'Simulacro' : session.mode === 'random' ? 'Aleatoria' : levelNames[session.difficulty!]}</span><span>{session.position + 1} / {session.questionIds.length}</span></div><div className="progress-bar"><span style={{ width: `${((session.position + Number(selected !== undefined)) / session.questionIds.length) * 100}%` }}/></div><article className="question-card"><div className="tags"><span>Demostrativa</span><span>{current.domain}</span><span>{levelNames[current.difficulty]}</span></div><p className="question-number">Pregunta {session.position + 1}</p><h2>{current.prompt}</h2><div className="options">{current.options.map((option, index) => { const choice = index as Choice; const state = selected === undefined ? '' : choice === current.correct ? 'correct' : choice === selected ? 'wrong' : 'muted'; return <button className={state} key={option} onClick={() => answer(choice)} disabled={selected !== undefined}><b>{String.fromCharCode(65 + index)}</b><span>{option}</span></button>; })}</div>{selected !== undefined && <div className={`feedback ${selected === current.correct ? 'success' : 'error'}`}><div><strong>{selected === current.correct ? 'Respuesta correcta' : 'Revisá este concepto'}</strong><p>{current.explanation}</p></div><button className="primary" onClick={advance}>{session.position + 1 === session.questionIds.length ? 'Ver progreso' : 'Siguiente →'}</button></div>}</article></section>}
+      {view === 'quiz' && session && current && <section className="quiz-wrap"><button className="back-link" onClick={() => navigate('home')}>← Guardar y salir</button><div className="quiz-meta"><span>{course.shortTitle} · {session.source === 'simulation' ? 'Simulacro' : session.mode === 'random' ? 'Aleatoria' : levelNames[session.difficulty!]}</span><span>{session.position + 1} / {session.questionIds.length}</span></div><div className="progress-bar"><span style={{ width: `${((session.position + Number(selected !== undefined)) / session.questionIds.length) * 100}%` }}/></div><article className="question-card"><div className="tags">{(course.conceptIcons?.[current.topic] ?? course.conceptIcons?.[current.domain]) && <span className="concept-tag"><ConceptIcon id={(course.conceptIcons?.[current.topic] ?? course.conceptIcons?.[current.domain])!} size={16}/>{current.topic}</span>}<span>Demostrativa</span><span>{current.domain}</span><span>{levelNames[current.difficulty]}</span></div><p className="question-number">Pregunta {session.position + 1}</p><h2>{current.prompt}</h2><div className="options">{current.options.map((option, index) => { const choice = index as Choice; const state = selected === undefined ? '' : choice === current.correct ? 'correct' : choice === selected ? 'wrong' : 'muted'; return <button className={state} key={option} onClick={() => answer(choice)} disabled={selected !== undefined}><b>{String.fromCharCode(65 + index)}</b><span>{option}</span></button>; })}</div>{selected !== undefined && <div className={`feedback ${selected === current.correct ? 'success' : 'error'}`}><div><strong>{selected === current.correct ? 'Respuesta correcta' : 'Revisá este concepto'}</strong><p>{current.explanation}</p></div><button className="primary" onClick={advance}>{session.position + 1 === session.questionIds.length ? 'Ver progreso' : 'Siguiente →'}</button></div>}</article></section>}
 
       {view === 'quiz' && (!session || !current) && <div className="resource-empty"><h1>No hay una sesión activa</h1><p>Configurá una práctica para comenzar.</p><button className="primary" onClick={() => navigate('practice')}>Configurar sesión</button></div>}
 

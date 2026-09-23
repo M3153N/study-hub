@@ -58,5 +58,5 @@ export function useCourseProgress(courseId: string) {
   }
 
   const reset = () => setStudyProgress(previous => ({ ...previous, courses: { ...previous.courses, [courseId]: blankProgress() } }));
-  return { progress, setProgress, reset };
+  return { progress, studyProgress, setProgress, reset };
 }
