@@ -53,7 +53,7 @@ export interface CertificationPack {
 export type ConceptIconId =
   | 'stakeholder' | 'project-manager' | 'pmo' | 'product-owner' | 'sponsor' | 'team'
   | 'risk' | 'planning' | 'schedule' | 'scope' | 'cost' | 'quality'
-  | 'predictive' | 'agile' | 'hybrid'
+  | 'predictive' | 'agile' | 'hybrid' | 'scrum' | 'kanban'
   | 'isms' | 'control' | 'audit' | 'incident-security' | 'asset'
   | 'service' | 'value-stream' | 'incident-service' | 'change' | 'continual-improvement';
 

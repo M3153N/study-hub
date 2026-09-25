@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { Avatar } from './Avatar';
+import { useState } from 'react';
 import { Icon, type IconName } from './Icons';
 import type { AvatarFrame, AvatarId } from '../core/profile';
 
@@ -14,77 +13,18 @@ interface Props {
   cards: HomeTool[]; hidden: string[]; metrics: HomeMetric[]; reducedMotion: boolean;
   onMove: (id: string, direction: -1 | 1) => void; onMoveTo: (source: string, target: string) => void;
   onToggle: (id: string) => void; onToggleMetric: (metric: HomeMetric) => void; onRestore: () => void;
+  quick: { size:string; difficulty:string; topic:string; pool:string; topics:string[] };
+  onQuickChange:(key:'size'|'difficulty'|'topic'|'pool',value:string)=>void; onQuickStart:()=>void;
 }
 
-const categories = ['training','library','tracking'] as const;
-const categoryNames = { training: 'Entrenar', library: 'Biblioteca', tracking: 'Seguimiento' };
-const metricNames: Record<HomeMetric,string> = { xp:'XP', rank:'Rango', accuracy:'Precisión', coverage:'Cobertura' };
-
 export function GameHome(props: Props) {
-  const [category, setCategory] = useState<(typeof categories)[number]>('training');
-  const [toolPage, setToolPage] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [swipeOffset,setSwipeOffset]=useState(0);
-  const [swipeSettling,setSwipeSettling]=useState(false);
-  const touchStart = useRef<{x:number;y:number;width:number;axis?:'x'|'y'}|null>(null);
-  const suppressClick=useRef(false);
-  const dragId = useRef<string | null>(null);
-  const longPress = useRef<number | undefined>(undefined);
-  const visible = props.cards.filter(card => card.category === category && !props.hidden.includes(card.id));
-  const pageSize = props.style === 'minimal' ? 2 : 4;
-  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
-  const limited = visible.slice(toolPage * pageSize, toolPage * pageSize + pageSize);
-  const progress = props.nextXp ? Math.max(0, Math.min(100, props.xp / props.nextXp * 100)) : 100;
-
-  useEffect(() => { setToolPage(0); }, [category, props.style, props.hidden]);
-
-  function beginSwipe(event: PointerEvent<HTMLElement>){
-    if(event.pointerType==='mouse'||event.clientX<24||event.clientX>window.innerWidth-24)return;
-    touchStart.current={x:event.clientX,y:event.clientY,width:event.currentTarget.clientWidth};
-    suppressClick.current=false;setSwipeSettling(false);setSwipeOffset(0);
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  }
-
-  function moveSwipe(event:PointerEvent<HTMLElement>){
-    const start=touchStart.current;if(!start||props.reducedMotion)return;
-    const dx=event.clientX-start.x,dy=event.clientY-start.y;
-    if(!start.axis&&Math.max(Math.abs(dx),Math.abs(dy))>8)start.axis=Math.abs(dx)>Math.abs(dy)*1.25?'x':'y';
-    if(start.axis!=='x')return;
-    suppressClick.current=true;event.preventDefault();
-    const index=categories.indexOf(category);const resistance=((index===0&&dx>0)||(index===categories.length-1&&dx<0)) ? .32 : 1;
-    setSwipeOffset(Math.max(-start.width,Math.min(start.width,dx*resistance)));
-  }
-
-  function finishSwipe(event: PointerEvent<HTMLElement>) {
-    const start = touchStart.current; touchStart.current = null;
-    if (!start || start.axis!=='x' || props.reducedMotion) {setSwipeOffset(0);return;}
-    const dx = event.clientX - start.x;
-    const index = categories.indexOf(category);
-    const next = Math.abs(dx)>=Math.max(55,start.width*.2)?(dx < 0 ? Math.min(categories.length - 1, index + 1) : Math.max(0, index - 1)):index;
-    setSwipeSettling(true);
-    setSwipeOffset(next===index?0:(dx<0?-start.width:start.width));
-    window.setTimeout(()=>{if(next!==index)setCategory(categories[next]);setSwipeSettling(false);setSwipeOffset(0)},160);
-  }
-
-  function pointerDown(event: PointerEvent, id: string) {
-    if (event.pointerType === 'mouse') return;
-    longPress.current = window.setTimeout(() => { dragId.current = id; navigator.vibrate?.(15); }, 380);
-  }
-
-  function pointerUp(event: PointerEvent) {
-    if (longPress.current) window.clearTimeout(longPress.current);
-    if (!dragId.current) return;
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-card-id]')?.dataset.cardId;
-    if (target && target !== dragId.current) props.onMoveTo(dragId.current, target);
-    dragId.current = null;
-  }
-
-  return <section className={`game-home home-style-${props.style}`}>
-    <div className="game-profile"><button onClick={props.onProfile} aria-label="Abrir perfil"><Avatar id={props.avatar} frame={props.frame}/></button><div><small>{props.courseTitle}</small><strong>{props.alias || 'Estudiante anónimo'}</strong><span>{props.rank} · {props.xp} XP</span></div>{props.style !== 'minimal' && <div className="rank-progress" aria-label={`${Math.round(progress)}% hacia el próximo rango`}><i style={{width:`${progress}%`}}/></div>}</div>
-    <article className="activity-card"><div><small>{props.sessionLabel ? 'Retomá donde quedaste' : 'Partida libre'}</small><h1>{props.sessionLabel ?? 'Entrená a tu manera'}</h1><p>{props.sessionLabel ? 'Tus respuestas y posición están guardadas.' : 'Elegí preguntas, dificultad y modalidad en una sesión configurable.'}</p></div><button className="primary" onClick={props.onPrimary}>{props.sessionLabel ? 'Continuar' : 'Jugar ahora'}</button></article>
-    {props.style === 'adventure' && <section className="adventure-strip"><span>✦ Ruta de aprendizaje</span><strong>{props.rank}</strong><small>Completá etapas, repasos y desafíos para avanzar.</small></section>}
-    {props.style === 'dashboard' && <section className="home-metrics">{props.metrics.includes('xp') && <article><span>XP</span><strong>{props.xp}</strong></article>}{props.metrics.includes('rank') && <article><span>Rango</span><strong>{props.rank}</strong></article>}{props.metrics.includes('accuracy') && <article><span>Precisión</span><strong>{props.accuracy || '—'}{props.accuracy ? '%' : ''}</strong></article>}{props.metrics.includes('coverage') && <article><span>Cobertura</span><strong>{props.coverage}%</strong></article>}</section>}
-    <div className="tool-zone"><div className="tool-zone-head"><div className="category-tabs" role="tablist">{categories.map(item => <button key={item} role="tab" aria-selected={category===item} className={category===item?'active':''} onClick={()=>setCategory(item)}>{categoryNames[item]}</button>)}</div><button className="tool-edit" onClick={()=>setSheetOpen(true)} aria-label="Personalizar inicio">Editar</button></div><div className="tool-swipe-viewport" onPointerDown={beginSwipe} onPointerMove={moveSwipe} onPointerUp={finishSwipe} onPointerCancel={finishSwipe}><div className={`tool-swipe-track ${swipeSettling?'settling':''}`} style={{transform:`translate3d(${swipeOffset}px,0,0)`}}><div className="game-tool-grid">{limited.length ? limited.map(card => <button key={card.id} className="game-tool" onClick={()=>{if(!suppressClick.current)card.action()}}><span><Icon name={card.icon} size={23}/></span><strong>{card.title}</strong><small>{card.count ?? card.description}</small></button>) : <div className="home-empty"><strong>Sin accesos visibles</strong><span>Podés restaurarlos desde Editar.</span></div>}</div>{pageCount > 1 && <nav className="tool-pagination" aria-label={`Página de herramientas, ${toolPage + 1} de ${pageCount}`}><button disabled={toolPage === 0} onClick={()=>setToolPage(page=>page-1)} aria-label="Herramientas anteriores">←</button><span>{Array.from({length:pageCount},(_,index)=><button key={index} className={index===toolPage?'active':''} onClick={()=>setToolPage(index)} aria-label={`Página ${index+1}`} aria-current={index===toolPage?'page':undefined}/>)}</span><button disabled={toolPage === pageCount-1} onClick={()=>setToolPage(page=>page+1)} aria-label="Más herramientas">→</button></nav>}</div></div></div>
-    {sheetOpen && <div className="sheet-backdrop" onClick={()=>setSheetOpen(false)}><section className="bottom-sheet" role="dialog" aria-modal="true" aria-label="Personalizar inicio" onClick={event=>event.stopPropagation()}><div className="sheet-handle"/><header><div><small>Centro de actividad</small><h2>Personalizar inicio</h2></div><button onClick={()=>setSheetOpen(false)} aria-label="Cerrar">×</button></header><div className="sheet-scroll"><fieldset><legend>Métricas visibles</legend><div className="metric-toggles">{(Object.keys(metricNames) as HomeMetric[]).map(metric=><label key={metric}><input type="checkbox" checked={props.metrics.includes(metric)} onChange={()=>props.onToggleMetric(metric)}/>{metricNames[metric]}</label>)}</div></fieldset><div className="sortable-tools">{props.cards.map((card,index)=><div key={card.id} data-card-id={card.id} draggable onDragStart={()=>{dragId.current=card.id;}} onDragOver={event=>event.preventDefault()} onDrop={()=>{if(dragId.current) props.onMoveTo(dragId.current,card.id); dragId.current=null;}} onPointerDown={event=>pointerDown(event,card.id)} onPointerUp={pointerUp}><label><input type="checkbox" checked={!props.hidden.includes(card.id)} onChange={()=>props.onToggle(card.id)}/><Icon name={card.icon} size={19}/><span>{card.title}</span></label><div><button disabled={index===0} onClick={()=>props.onMove(card.id,-1)} aria-label={`Subir ${card.title}`}>↑</button><button disabled={index===props.cards.length-1} onClick={()=>props.onMove(card.id,1)} aria-label={`Bajar ${card.title}`}>↓</button></div></div>)}</div></div><button className="secondary sheet-restore" onClick={props.onRestore}>Restaurar distribución</button></section></div>}
+  const mainModes=props.cards.filter(card=>['campaign','practice','training'].includes(card.id));
+  return <section className={`game-home game-home-simple home-style-${props.style}`}>
+    <div className="home-course-chip">{props.courseTitle}<span>{props.rank} · {props.xp} XP</span></div>
+    <article className="activity-card continue-card"><span className="continue-icon"><Icon name="play" size={30}/></span><div><small>{props.sessionLabel?'Actividad en curso':'Próxima actividad'}</small><h1>{props.sessionLabel??'Comenzar campaña'}</h1><p>{props.sessionLabel?'Tu posición y respuestas están guardadas.':'Avanzá por el mapa de aprendizaje.'}</p></div><button className="primary" onClick={props.onPrimary}>{props.sessionLabel?'Continuar':'Jugar'}</button></article>
+    {props.style==='dashboard'&&<section className="home-metrics">{props.metrics.includes('xp')&&<article><span>XP</span><strong>{props.xp}</strong></article>}{props.metrics.includes('accuracy')&&<article><span>Precisión</span><strong>{props.accuracy||'—'}{props.accuracy?'%':''}</strong></article>}{props.metrics.includes('coverage')&&<article><span>Cobertura</span><strong>{props.coverage}%</strong></article>}</section>}
+    <div className="main-mode-grid">{mainModes.map(card=><button key={card.id} className={`main-mode-card mode-${card.id}`} onClick={()=>card.id==='practice'?setSheetOpen(true):card.action()}><span><Icon name={card.icon} size={34}/></span><strong>{card.title}</strong><small>{card.id==='practice'?'Personalizar y jugar':card.count??card.description}</small></button>)}</div>
+    {sheetOpen&&<div className="sheet-backdrop" onClick={()=>setSheetOpen(false)}><section className="bottom-sheet quick-practice-sheet" role="dialog" aria-modal="true" aria-label="Configurar partida libre" onClick={event=>event.stopPropagation()}><div className="sheet-handle"/><header><div><small>Partida libre</small><h2>Configuración rápida</h2></div><button onClick={()=>setSheetOpen(false)} aria-label="Cerrar">×</button></header><div className="quick-practice-grid"><label>Cantidad<select value={props.quick.size} onChange={event=>props.onQuickChange('size',event.target.value)}><option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="all">Todas</option></select></label><label>Dificultad<select value={props.quick.difficulty} onChange={event=>props.onQuickChange('difficulty',event.target.value)}><option value="all">Todas</option><option value="basico">Básico</option><option value="intermedio">Intermedio</option><option value="avanzado">Avanzado</option></select></label><label>Tema<select value={props.quick.topic} onChange={event=>props.onQuickChange('topic',event.target.value)}><option value="all">Todos</option>{props.quick.topics.map(topic=><option key={topic}>{topic}</option>)}</select></label><label>Banco<select value={props.quick.pool} onChange={event=>props.onQuickChange('pool',event.target.value)}><option value="all">Mixto</option><option value="new">Nuevas</option><option value="mistakes">Errores</option></select></label></div><button className="primary quick-start" onClick={()=>{setSheetOpen(false);props.onQuickStart()}}>Iniciar partida</button></section></div>}
   </section>;
 }

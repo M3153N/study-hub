@@ -11,7 +11,7 @@ export const capm: CertificationPack = {
   accent: '#8b7cff',
   accentSoft: '#40d9c4',
   theme: { primary: '#8b7cff', secondary: '#4f9dff', glow: '#6f63ff', icon: 'orbit', motif: 'grid' },
-  conceptIcons: { Interesado:'stakeholder', Interesados:'stakeholder', Roles:'project-manager', 'Director de proyecto':'project-manager', PMO:'pmo', 'Product Owner':'product-owner', Patrocinador:'sponsor', Equipo:'team', Riesgo:'risk', Riesgos:'risk', Planificación:'planning', Cronograma:'schedule', Alcance:'scope', CPI:'cost', SPI:'schedule', Calidad:'quality', 'Enfoques predictivos':'predictive', 'Enfoques ágiles':'agile', Híbrido:'hybrid', 'Product Backlog':'product-owner' },
+  conceptIcons: { Interesado:'stakeholder', Interesados:'stakeholder', Roles:'project-manager', 'Director de proyecto':'project-manager', PMO:'pmo', 'Product Owner':'product-owner', Patrocinador:'sponsor', Equipo:'team', Riesgo:'risk', Riesgos:'risk', Planificación:'planning', Cronograma:'schedule', Alcance:'scope', CPI:'cost', SPI:'schedule', Calidad:'quality', 'Enfoques predictivos':'predictive', 'Enfoques ágiles':'agile', Híbrido:'hybrid', Scrum:'scrum', Kanban:'kanban', 'Product Backlog':'product-owner' },
   exam: { id:'capm-demo-exam', title:'Simulacro CAPM demostrativo', durationMinutes:18, questionCount:18, passingPercent:70, domainWeights:{'Fundamentos':.28,'Enfoques predictivos':.22,'Enfoques ágiles':.28,'Análisis de negocio':.22} },
   campaign: { id:'capm-campaign-v1', certificationId:'capm', chapters:[
     { id:'capm-foundations', title:'El punto de partida', description:'Proyecto, roles e interesados.', nodes:[
