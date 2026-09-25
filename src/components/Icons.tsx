@@ -1,7 +1,7 @@
 import type { CourseIcon } from '../core/types';
 import type { ReactNode } from 'react';
 
-export type IconName = CourseIcon | 'home' | 'practice' | 'library' | 'progress' | 'settings' | 'exam' | 'book' | 'map' | 'compare' | 'cards' | 'formula' | 'tips' | 'chart' | 'arrow';
+export type IconName = CourseIcon | 'home' | 'practice' | 'library' | 'progress' | 'settings' | 'exam' | 'book' | 'map' | 'compare' | 'cards' | 'formula' | 'tips' | 'chart' | 'arrow' | 'user' | 'trophy' | 'certificate' | 'play' | 'target';
 
 export function Icon({ name, size = 24 }: { name: IconName; size?: number }) {
   const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
@@ -23,6 +23,11 @@ export function Icon({ name, size = 24 }: { name: IconName; size?: number }) {
     tips: <><path d="M9 18h6M10 22h4"/><path d="M8.4 15.5A7 7 0 1 1 15.6 15.5C14.6 16.2 14 17 14 18h-4c0-1-.6-1.8-1.6-2.5Z"/></>,
     chart: <><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/><path d="m4 7 6-4 6 7 5-5"/></>,
     arrow: <><path d="M5 12h14M14 7l5 5-5 5"/></>,
+    user: <><circle cx="12" cy="8" r="4"/><path d="M4 21c1-6 4-9 8-9s7 3 8 9"/></>,
+    trophy: <><path d="M8 4h8v5c0 4-2 6-4 6s-4-2-4-6V4ZM9 20h6M12 15v5"/><path d="M8 6H4c0 4 1 6 5 6M16 6h4c0 4-1 6-5 6"/></>,
+    certificate: <><rect x="4" y="3" width="16" height="14" rx="2"/><path d="M8 7h8M8 11h5M10 17l-1 5 3-2 3 2-1-5"/></>,
+    play: <><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4V8Z"/></>,
+    target: <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="m15 9 6-6M17 3h4v4"/></>,
   };
   return <svg {...common}>{paths[name]}</svg>;
 }

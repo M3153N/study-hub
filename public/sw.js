@@ -1,4 +1,4 @@
-const CACHE = 'study-hub-shell-v1-1';
+const CACHE = 'study-hub-shell-v1-2';
 const BASE = '/study-hub/';
 const PRECACHE = [BASE, `${BASE}manifest.webmanifest`, `${BASE}icons/icon-192.png`, `${BASE}icons/icon-512.png`, `${BASE}icons/apple-touch-icon.png`];
 

@@ -8,9 +8,9 @@ import { ConceptIcon } from './components/ConceptIcons';
 import { CampaignView } from './components/CampaignView';
 import { ExamView } from './components/ExamView';
 import { Avatar } from './components/Avatar';
-import { ProfileMenu } from './components/ProfileMenu';
 import { useCourseProgress } from './core/progress';
-import { globalProfileStats, useLocalProfile } from './core/profile';
+import { useLocalProfile } from './core/profile';
+import { type IconPackId } from './core/iconPacks';
 import { reviewBuckets, scheduleReview, type RecallGrade } from './core/spacedRepetition';
 import { achievementCatalog, breakdown, rankFor, refreshAchievements, uniqueSeen } from './core/gamification';
 import { resolveTheme, themes, type Appearance, type Density, type ThemeId } from './core/themes';
@@ -22,14 +22,13 @@ type HomeCategory = 'training' | 'library' | 'tracking';
 type ProgressTab = 'summary' | 'levels' | 'mistakes';
 type ProgressSection = 'metrics' | 'ranks' | 'achievements';
 type SettingsTab = 'appearance' | 'home' | 'accessibility' | 'about';
-interface Preferences { version: 4; reducedMotion: boolean; largeText: boolean; themeId: ThemeId; appearance: Appearance; density: Density; homeOrder: string[]; hiddenHome: string[]; focusMode: boolean; homeStyle: HomeStyle; homeMetrics: HomeMetric[]; }
+interface Preferences { version: 5; reducedMotion: boolean; largeText: boolean; themeId: ThemeId; appearance: Appearance; density: Density; homeOrder: string[]; hiddenHome: string[]; focusMode: boolean; homeStyle: HomeStyle; homeMetrics: HomeMetric[]; iconPack:IconPackId; }
 type LegacyPreferences = Partial<Omit<Preferences,'themeId'|'version'>> & { themeId?: string };
 interface InstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>; }
 
 const courseKey = 'study-hub:selected-course:v1';
-const preferencesKey = 'study-hub:preferences:v4';
-const previousPreferencesKey = 'study-hub:preferences:v3';
-const legacyPreferencesKey = 'study-hub:preferences:v1';
+const preferencesKey = 'study-hub:preferences:v5';
+const previousPreferenceKeys = ['study-hub:preferences:v4', 'study-hub:preferences:v3', 'study-hub:preferences:v2', 'study-hub:preferences:v1'];
 const defaultHomeOrder = ['campaign','training','practice','simulations','glossary','maps','comparisons','reading','flashcards','formulas','tips','progress'];
 const sizeOptions: SessionSize[] = [5, 10, 20, 'all'];
 
@@ -39,16 +38,13 @@ function initialCourse() {
 }
 
 function initialPreferences(): Preferences {
-  const defaults: Preferences = { version: 4, reducedMotion: false, largeText: false, themeId: 'academy', appearance: 'auto', density: 'normal', homeOrder: defaultHomeOrder, hiddenHome: [], focusMode: false, homeStyle: 'minimal', homeMetrics: ['xp','rank','accuracy','coverage'] };
+  const defaults: Preferences = { version: 5, reducedMotion: false, largeText: false, themeId: 'academy', appearance: 'auto', density: 'normal', homeOrder: defaultHomeOrder, hiddenHome: [], focusMode: false, homeStyle: 'minimal', homeMetrics: ['xp','rank','accuracy','coverage'], iconPack:'default' };
   try {
     const saved = localStorage.getItem(preferencesKey);
-    if (saved) return { ...defaults, ...JSON.parse(saved) as Partial<Preferences>, version: 4 };
-    const previous = localStorage.getItem(previousPreferencesKey);
-    if (previous) { const migrated=JSON.parse(previous) as LegacyPreferences; return { ...defaults, ...migrated, themeId:migrated.themeId==='course'?'academy':themes.some(theme=>theme.id===migrated.themeId)?migrated.themeId as ThemeId:'academy', version: 4 }; }
-    const legacy = localStorage.getItem(legacyPreferencesKey);
-    if (!legacy) return defaults;
-    const migrated=JSON.parse(legacy) as LegacyPreferences;
-    return { ...defaults, ...migrated, themeId:migrated.themeId==='course'?'academy':themes.some(theme=>theme.id===migrated.themeId)?migrated.themeId as ThemeId:'academy', version:4 };
+    if (saved) return { ...defaults, ...JSON.parse(saved) as Partial<Preferences>, version: 5 };
+    const previous = previousPreferenceKeys.map(key => localStorage.getItem(key)).find(Boolean);
+    if (previous) { const migrated=JSON.parse(previous) as LegacyPreferences; return { ...defaults, ...migrated, themeId:migrated.themeId==='course'?'academy':themes.some(theme=>theme.id===migrated.themeId)?migrated.themeId as ThemeId:'academy', version: 5 }; }
+    return defaults;
   } catch { return defaults; }
 }
 
@@ -69,7 +65,6 @@ function App() {
   const [progressTab, setProgressTab] = useState<ProgressTab>('summary');
   const [progressSection, setProgressSection] = useState<ProgressSection>('metrics');
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [filters, setFilters] = useState<PracticeFilters>({ pool: 'all', domain: 'all', topic: 'all', difficulty: 'all' });
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(() => window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
@@ -79,7 +74,6 @@ function App() {
   const course = getCertification(courseId);
   const { progress, studyProgress, setProgress, reset } = useCourseProgress(courseId);
   const { profile, updateProfile } = useLocalProfile();
-  const globalStats = useMemo(() => globalProfileStats(studyProgress), [studyProgress]);
   const session = progress.activeSession;
   const current = session ? course.questions.find(question => question.id === session.questionIds[session.position]) : undefined;
   const selected = current && session ? session.answers[current.id] : undefined;
@@ -95,7 +89,7 @@ function App() {
   const filteredQuestions = useMemo(() => course.questions.filter(question => {
     if (filters.domain !== 'all' && question.domain !== filters.domain) return false;
     if (filters.topic !== 'all' && question.topic !== filters.topic) return false;
-    if (mode !== 'linear' && filters.difficulty !== 'all' && question.difficulty !== filters.difficulty) return false;
+    if (filters.difficulty !== 'all' && question.difficulty !== filters.difficulty) return false;
     if (filters.pool === 'new' && seen.has(question.id)) return false;
     if (filters.pool === 'mistakes' && !(progress.mistakes[question.id] > 0)) return false;
     return true;
@@ -147,7 +141,6 @@ function App() {
     setCourseId(id);
     setView('gamehome');
     setFilters({ pool: 'all', domain: 'all', topic: 'all', difficulty: 'all' });
-    setProfileMenuOpen(false);
   }
 
   function navigate(next: View) {
@@ -161,7 +154,7 @@ function App() {
   }
 
   function updatePreferences(patch: Partial<Preferences>) {
-    const next = { ...preferences, ...patch, version: 4 as const };
+    const next = { ...preferences, ...patch, version: 5 as const };
     setPreferences(next);
   }
 
@@ -346,27 +339,25 @@ function App() {
     updatePreferences({ homeMetrics: preferences.homeMetrics.includes(metric) ? preferences.homeMetrics.filter(item => item !== metric) : [...preferences.homeMetrics, metric] });
   }
 
-  const navSection = ['gamehome','profile','campaign'].includes(view) ? 'home' : view === 'resource' ? 'library' : ['quiz','results','training','exam','exam-results','simulations'].includes(view) ? 'practice' : view;
+  const navSection = ['gamehome','campaign'].includes(view) ? 'home' : view === 'resource' ? 'library' : ['quiz','results','training','exam','exam-results','simulations'].includes(view) ? 'practice' : view;
 
   const focusActive = view === 'quiz' && preferences.focusMode;
 
-  return <div data-theme={preferences.themeId} data-color-mode={effectiveColorMode} data-density={preferences.density} className={`app-shell motif-${course.theme.motif} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.largeText ? 'large-text' : ''} ${isStandalone ? 'standalone' : ''} ${focusActive ? 'focus-mode' : ''}`} style={style}>
+  return <div data-theme={preferences.themeId} data-icon-pack={preferences.iconPack} data-color-mode={effectiveColorMode} data-density={preferences.density} className={`app-shell motif-${course.theme.motif} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.largeText ? 'large-text' : ''} ${isStandalone ? 'standalone' : ''} ${focusActive ? 'focus-mode' : ''}`} style={style}>
     <header className="topbar">
       <button className="brand" onClick={() => navigate('home')} aria-label="Ir al centro de estudio"><span><Icon name="home" size={22}/></span><div>Study Hub<small>{course.shortTitle}</small></div></button>
-      <nav className="desktop-nav" aria-label="Navegación principal"><button className={navSection === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Inicio</button><button className={navSection === 'practice' ? 'active' : ''} onClick={() => navigate('practice')}>Practicar</button><button className={navSection === 'library' ? 'active' : ''} onClick={() => navigate('library')}>Biblioteca</button><button className={navSection === 'progress' ? 'active' : ''} onClick={() => navigate('progress')}>Progreso</button></nav>
-      <button className="header-avatar" onClick={()=>setProfileMenuOpen(true)} aria-label="Abrir perfil y certificación" aria-expanded={profileMenuOpen}><Avatar id={profile.avatar} frame={profile.frame} size={42}/></button>
+      <nav className="desktop-nav" aria-label="Navegación principal"><button className={navSection === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Inicio</button><button className={navSection === 'practice' ? 'active' : ''} onClick={() => navigate('practice')}>Practicar</button><button className={navSection === 'library' ? 'active' : ''} onClick={() => navigate('library')}>Estudio</button><button className={navSection === 'profile' ? 'active' : ''} onClick={() => navigate('profile')}>Perfil</button></nav>
+      <button className="header-avatar" onClick={()=>navigate('profile')} aria-label="Abrir perfil"><Avatar id={profile.avatar} frame={profile.frame} size={42}/></button>
     </header>
-
-    <ProfileMenu open={profileMenuOpen} profile={profile} globalXp={globalStats.xp} globalRank={globalStats.current.name} courseId={courseId} courses={certifications} onClose={()=>setProfileMenuOpen(false)} onCourse={changeCourse} onProfile={()=>{setProfileMenuOpen(false);navigate('profile')}} onAppearance={()=>{setProfileMenuOpen(false);setSettingsTab('appearance');navigate('settings')}} onSettings={()=>{setProfileMenuOpen(false);setSettingsTab('accessibility');navigate('settings')}}/>
 
     {(!online || waitingWorker) && <aside className="connection-status" role="status"><span>{online?'Nueva versión disponible':'Sin conexión · tus datos siguen guardándose localmente'}</span>{waitingWorker&&<button onClick={()=>waitingWorker.postMessage({type:'SKIP_WAITING'})}>Actualizar cuando estés listo</button>}</aside>}
 
     <main className="app-main">
       {focusActive && <button className="focus-toggle" onClick={() => updatePreferences({ focusMode: false })} aria-label="Salir del modo concentración">Salir de concentración</button>}
 
-      {view === 'gamehome' && <GameHome alias={profile.alias} avatar={profile.avatar} frame={profile.frame} style={preferences.homeStyle} courseTitle={course.shortTitle} xp={progress.xp} rank={rank.current.name} nextXp={rank.next?.xp} accuracy={accuracy} coverage={coverage} sessionLabel={session ? `Pregunta ${session.position + 1} de ${session.questionIds.length}` : progress.activeExam ? 'Simulacro guardado' : reviews.dueIds.length ? `${reviews.dueIds.length} repasos para hoy` : progress.campaign.currentNodeId ? 'Continuar campaña' : 'Comenzar campaña'} onPrimary={() => navigate(session ? 'quiz' : progress.activeExam ? 'exam' : reviews.dueIds.length ? 'training' : 'campaign')} onProfile={() => navigate('profile')} cards={orderedCards} hidden={preferences.hiddenHome} metrics={preferences.homeMetrics} reducedMotion={preferences.reducedMotion} onMove={moveHomeCard} onMoveTo={moveHomeCardTo} onToggle={toggleHomeCard} onToggleMetric={toggleHomeMetric} onRestore={() => updatePreferences({ homeOrder: defaultHomeOrder, hiddenHome: [], homeMetrics: ['xp','rank','accuracy','coverage'] })}/>}
+      {view === 'gamehome' && <GameHome alias={profile.alias} avatar={profile.avatar} frame={profile.frame} style={preferences.homeStyle} courseTitle={course.shortTitle} xp={progress.xp} rank={rank.current.name} nextXp={rank.next?.xp} accuracy={accuracy} coverage={coverage} sessionLabel={session ? `Pregunta ${session.position + 1} de ${session.questionIds.length}` : progress.activeExam ? 'Simulacro guardado' : reviews.dueIds.length ? `${reviews.dueIds.length} repasos para hoy` : progress.campaign.currentNodeId ? 'Continuar campaña' : 'Comenzar campaña'} onPrimary={() => navigate(session ? 'quiz' : progress.activeExam ? 'exam' : reviews.dueIds.length ? 'training' : 'campaign')} onProfile={() => navigate('profile')} cards={orderedCards} hidden={preferences.hiddenHome} metrics={preferences.homeMetrics} reducedMotion={preferences.reducedMotion} onMove={moveHomeCard} onMoveTo={moveHomeCardTo} onToggle={toggleHomeCard} onToggleMetric={toggleHomeMetric} onRestore={() => updatePreferences({ homeOrder: defaultHomeOrder, hiddenHome: [], homeMetrics: ['xp','rank','accuracy','coverage'] })} quick={{size:String(sessionSize),difficulty:filters.difficulty,topic:filters.topic,pool:filters.pool,topics}} onQuickChange={(key,value)=>key==='size'?setSessionSize(value==='all'?'all':Number(value) as SessionSize):setFilters(previous=>({...previous,[key]:value}))} onQuickStart={()=>{setMode('random');startSession('random','basico',sessionSize,'practice')}}/>}
 
-      {view === 'profile' && <ProfileView profile={profile} progress={studyProgress} courses={certifications} onChange={updateProfile} onBack={() => navigate('home')}/>}
+      {view === 'profile' && <ProfileView profile={profile} progress={studyProgress} courses={certifications} activeCourseId={courseId} themeId={preferences.themeId} homeStyle={preferences.homeStyle} iconPack={preferences.iconPack} reducedMotion={preferences.reducedMotion} largeText={preferences.largeText} onChange={updateProfile} onCourse={changeCourse} onBack={() => navigate('home')} onProgress={()=>navigate('progress')} onMoreSettings={()=>navigate('personalize')} onTheme={themeId=>updatePreferences({themeId})} onHomeStyle={homeStyle=>updatePreferences({homeStyle})} onIconPack={iconPack=>updatePreferences({iconPack})} onToggle={(key,value)=>updatePreferences({[key]:value})}/>}
 
       {view === 'campaign' && <CampaignView course={course} completed={progress.campaign.completedNodes} current={progress.campaign.currentNodeId} onBack={()=>navigate('home')} onStart={openCampaignNode} onReview={node=>startReview(node.id)} onResource={completeResourceNode} onReturn={()=>document.getElementById(`node-${progress.campaign.currentNodeId}`)?.scrollIntoView({block:'center',behavior:preferences.reducedMotion?'auto':'smooth'})}/>}
 
@@ -407,7 +398,7 @@ function App() {
         <div className="home-tools"><div className="section-heading"><div><p className="eyebrow">Todo en un lugar</p><h2>¿Qué querés estudiar?</h2></div><span>{studyCards.length} herramientas</span></div><div className="category-tabs" role="tablist" aria-label="Categorías del centro de estudio"><button role="tab" aria-selected={homeCategory === 'training'} className={homeCategory === 'training' ? 'active' : ''} onClick={() => selectHomeCategory('training')}>Entrenar</button><button role="tab" aria-selected={homeCategory === 'library'} className={homeCategory === 'library' ? 'active' : ''} onClick={() => selectHomeCategory('library')}>Biblioteca</button><button role="tab" aria-selected={homeCategory === 'tracking'} className={homeCategory === 'tracking' ? 'active' : ''} onClick={() => selectHomeCategory('tracking')}>Seguimiento</button></div><section className="study-grid">{visibleCards.map(card => <button key={card.title} className="study-card" onClick={card.action}><span className="tool-icon"><Icon name={card.icon} size={25}/></span><span className="tool-copy"><strong>{card.title}</strong><small>{card.description}</small>{card.count && <em>{card.count}</em>}</span><Icon name="arrow" size={18}/></button>)}</section>{pageCount > 1 && <div className="tool-pagination" aria-label="Páginas de herramientas">{Array.from({ length: pageCount }, (_, index) => <button key={index} aria-label={`Página ${index + 1}`} aria-current={homePage === index ? 'page' : undefined} className={homePage === index ? 'active' : ''} onClick={() => setHomePage(index)}/>)}</div>}</div>
       </section>}
 
-      {view === 'library' && <section className="library-view"><div className="page-heading compact-page-heading"><p className="eyebrow">{course.shortTitle} · recursos demostrativos</p><h1>Biblioteca</h1></div><div className="library-grid">{studyCards.filter(card => ['Glosario','Mapas conceptuales','Cuadros comparativos','Material de lectura','Flashcards','Fórmulas','Consejos de examen'].includes(card.title)).map(card => <button key={card.title} onClick={card.action}><span><Icon name={card.icon} size={27}/></span><strong>{card.title}</strong><Icon name="arrow" size={16}/></button>)}</div></section>}
+      {view === 'library' && <section className="library-view study-view"><div className="page-heading compact-page-heading"><p className="eyebrow">{course.shortTitle} · recursos demostrativos</p><h1>Estudio</h1><p>Herramientas y materiales de tu certificación.</p></div><div className="library-grid">{studyCards.filter(card => ['Glosario','Mapas conceptuales','Cuadros comparativos','Material de lectura','Flashcards','Fórmulas','Consejos de examen'].includes(card.title)).map(card => <button key={card.title} onClick={card.action}><span><Icon name={card.icon} size={27}/></span><strong>{card.title}</strong><small>{card.count ?? 'Explorar'}</small><Icon name="arrow" size={16}/></button>)}</div></section>}
 
       {view === 'resource' && <ResourceView kind={resource} course={course} onBack={() => navigate('library')}/>}
 
@@ -430,7 +421,7 @@ function App() {
     </main>
 
     <footer><span>Study Hub · Centro multicertificación</span><span>Contenido demostrativo · progreso local e independiente</span></footer>
-    <nav className="bottom-nav" aria-label="Navegación móvil"><button className={navSection === 'home' ? 'active' : ''} onClick={() => navigate('home')}><Icon name="home" size={21}/><span>Inicio</span></button><button className={navSection === 'practice' ? 'active' : ''} onClick={() => navigate('practice')}><Icon name="practice" size={21}/><span>Practicar</span></button><button className={navSection === 'library' ? 'active' : ''} onClick={() => navigate('library')}><Icon name="library" size={21}/><span>Biblioteca</span></button><button className={navSection === 'progress' ? 'active' : ''} onClick={() => navigate('progress')}><Icon name="progress" size={21}/><span>Progreso</span></button></nav>
+    <nav className="bottom-nav" aria-label="Navegación móvil"><button className={navSection === 'home' ? 'active' : ''} onClick={() => navigate('home')}><Icon name="home" size={21}/><span>Inicio</span></button><button className={navSection === 'practice' ? 'active' : ''} onClick={() => navigate('practice')}><Icon name="practice" size={21}/><span>Practicar</span></button><button className={navSection === 'library' ? 'active' : ''} onClick={() => navigate('library')}><Icon name="library" size={21}/><span>Estudio</span></button><button className={navSection === 'profile' ? 'active' : ''} onClick={() => navigate('profile')}><Icon name="user" size={21}/><span>Perfil</span></button></nav>
   </div>;
 }
 
